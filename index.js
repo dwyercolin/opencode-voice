@@ -1,11 +1,11 @@
 // opencode-voice: Speech-to-text dictation for OpenCode.
 //
-// STT: Record voice via sox, transcribe locally (nemo-speech or whisper.cpp),
-// show a live interim transcript in the prompt while talking, normalize with
-// an OpenAI-compatible LLM, append to the TUI prompt.
+// STT: Record voice via sox, transcribe locally with nemo-speech, show a live
+// interim transcript in the prompt while talking, normalize with an
+// OpenAI-compatible LLM, append to the TUI prompt.
 //
 // Prerequisites:
-//   sox for capture; nemo-speech or whisper-cli for transcription
+//   sox for capture; nemo-speech for transcription (/voice installs it)
 //
 // Configuration via tui.json plugin options (all optional - /voice setup can
 // configure the rest at runtime):
@@ -15,16 +15,14 @@
 // opencode server (the user's own models, including free opencode Zen ones)
 // after running /voice setup.
 //
-// Runtime state (engine, model, mic, voice mode, cleanup mode) via api.kv.
+// Runtime state (model, mic, voice mode, cleanup mode) via api.kv.
 //
 // Commands:
-//   /voice                - setup wizard (first run) / input mode picker
+//   /voice                - setup wizard (first run), then the settings hub
 //   /stt-record (ctrl+r)  - record via active voice mode, transcribe
 //   /stt-submit           - stop recording, transcribe, and submit
 //   /stt-stop             - cancel recording
-//   /stt-engine           - select engine: nemo-speech or whisper.cpp
-//   /stt-model            - select model for the active engine
-//   /stt-language         - select transcription language (whisper only)
+//   /stt-model            - select nemo-speech model
 //   /stt-gain             - toggle auto-gain
 //   /stt-mic              - select microphone
 

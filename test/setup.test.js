@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { progressBar, spinnerBar } from "../lib/setup.js";
+import { progressBar, shortModelLabel, spinnerBar } from "../lib/setup.js";
 
 test("renders a compact progress bar", () => {
   assert.equal(progressBar(0), "░░░░░░░░░░");
@@ -20,4 +20,14 @@ test("renders an indeterminate spinner bar", () => {
   assert.equal(spinnerBar(9), "░░░░░░░░░█");
   assert.equal(spinnerBar(10), "█░░░░░░░░░");
   assert.equal(spinnerBar(-1), "█░░░░░░░░░");
+});
+
+test("shortModelLabel keeps the tail of long model ids", () => {
+  assert.equal(shortModelLabel("anthropic/claude-sonnet-4-5"), "anthropic/claude-sonnet-4-5");
+  assert.equal(shortModelLabel("abcdefghij", 10), "abcdefghij");
+  assert.equal(shortModelLabel("abcdefghijkl", 10), "…defghijkl");
+  assert.equal(shortModelLabel("abcdefghijkl", 10).length, 10);
+  assert.equal(shortModelLabel(""), "");
+  assert.equal(shortModelLabel(null), "");
+  assert.equal(shortModelLabel(undefined), "");
 });

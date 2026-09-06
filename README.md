@@ -24,11 +24,11 @@ to start/stop.
 ## Install
 
 Add to your `tui.json` (create at `~/.config/opencode/tui.json` if it doesn't
-exist). After installing, run `/voice` in OpenCode: the setup wizard checks
-your mic, installs nemo-speech in the background if needed (with a loading
-bar — keep working, it notifies when done), and points text cleanup at the
-models you're already logged into OpenCode with (including free opencode Zen
-models):
+exist). After installing, run `/voice` in OpenCode: the setup wizard installs
+nemo-speech in the background if needed (with a loading bar — keep working, it
+notifies when done), points text cleanup at the models you're already logged
+into OpenCode with (including free opencode Zen models), and asks how the talk
+key should behave:
 
 ```json
 {
@@ -274,7 +274,7 @@ even with thinking enabled.
 
 | Command       | Keybind  | Description                                   |
 | ------------- | -------- | --------------------------------------------- |
-| `/voice`      |          | Voice input mode: hold (push-to-talk) or tap  |
+| `/voice`      |          | Setup wizard, then the voice settings hub     |
 | `/stt-record` | `ctrl+r` | Record via active voice mode, then transcribe |
 | `/stt-submit` |          | Stop recording, transcribe, and submit        |
 | `/stt-stop`   |          | Cancel recording                              |
@@ -282,7 +282,19 @@ even with thinking enabled.
 | `/stt-gain`   |          | Toggle auto-gain                              |
 | `/stt-mic`    |          | Select microphone                             |
 
-#### Voice input modes (`/voice`)
+#### The `/voice` menu
+
+On first run `/voice` is a short wizard: it installs nemo-speech if it is
+missing (in the background, with a progress bar in toasts), asks which model
+should clean up your dictation, and asks how the talk key should behave.
+
+After that, `/voice` opens a settings screen showing every runtime setting
+with its current value — input mode, auto-submit, text cleanup, transcription
+model, microphone, auto-gain — plus a "Run setup again" row. Toggles flip in
+place; pickers return to the screen. The `/stt-*` commands below are shortcuts
+to the same pickers.
+
+#### Voice input modes
 
 Mirrors Claude Code's voice dictation:
 
