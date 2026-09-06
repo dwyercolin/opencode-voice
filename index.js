@@ -29,7 +29,7 @@
 import { registerSTT } from "./lib/stt.js";
 import { createClient } from "./lib/llm-client.js";
 import { createLogger } from "./lib/logger.js";
-import { resolveOpencodeCleanup } from "./lib/cleanup.js";
+import { resolveOpencodeCleanup, runCleanupViaSession } from "./lib/cleanup.js";
 
 export default {
   id: "opencode-voice",
@@ -68,15 +68,23 @@ export default {
         if (mode !== "opencode") {
           return { text: null, error: "Cleanup not configured (run /voice setup)" };
         }
+        const model = kv.get("cleanup.model");
+        // Zen ("opencode/*") models route through the server's own chat
+        // (session.prompt, the same transport the TUI uses): the OpenAI-compat
+        // /v1 endpoint is auth-gated on some hosts and 429s them even though
+        // the server itself serves them fine. Everything else keeps /v1.
+        if (model && model.startsWith("opencode/")) {
+          return runCleanupViaSession(client, model, req.system, req.prompt, logger);
+        }
         const resolved = await resolveOpencodeCleanup(client, logger);
-        const model = kv.get("cleanup.model") || resolved?.model;
-        if (!resolved?.endpoint || !model) {
+        const endpointModel = model || resolved?.model;
+        if (!resolved?.endpoint || !endpointModel) {
           return {
             text: null,
             error: "opencode server unreachable - cleanup skipped (raw text kept)",
           };
         }
-        req.config = { ...req.config, endpoint: resolved.endpoint, model };
+        req.config = { ...req.config, endpoint: resolved.endpoint, model: endpointModel };
       }
       return baseComplete(req);
     };

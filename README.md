@@ -314,6 +314,13 @@ model, microphone, auto-gain — plus a "Run setup again" row. Toggles flip in
 place; pickers return to the screen. The `/stt-*` commands below are shortcuts
 to the same pickers.
 
+> **Zen free models on gated hosts.** Some setups gate the server's
+> OpenAI-compatible `/v1` endpoint behind the active subscription (a throttled
+> Claude Max plan 429s every model there, free ones included). Zen
+> (`opencode/*`) cleanup models and their auto-pick probes therefore travel
+> through the server's own session chat instead — the same routing the TUI
+> uses — in throwaway sessions. Non-Zen models keep the `/v1` transport.
+
 #### Voice input modes
 
 Mirrors Claude Code's voice dictation:
