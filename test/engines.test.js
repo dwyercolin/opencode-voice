@@ -4,7 +4,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { buildNemoArgs, sliceWavFrom, snapshotPartialWav } from "../lib/engines.js";
+import {
+  buildNemoArgs,
+  sliceWavFrom,
+  snapshotPartialWav,
+  soxInstallCommand,
+} from "../lib/engines.js";
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "opencode-voice-engines-"));
@@ -19,6 +24,18 @@ test("builds nemo-speech transcribe args with and without a model", () => {
     "--model",
     "parakeet-tdt",
   ]);
+});
+
+test("sox install command names the system package manager", () => {
+  assert.equal(soxInstallCommand("darwin"), "brew install sox");
+  // Debian/Ubuntu split sox's PulseAudio driver and the pactl tools into
+  // separate packages; recording needs all three.
+  assert.equal(
+    soxInstallCommand("linux"),
+    "sudo apt install sox libsox-fmt-pulse pulseaudio-utils",
+  );
+  // Any other platform gets the Linux instruction rather than nothing.
+  assert.equal(soxInstallCommand("win32"), soxInstallCommand("linux"));
 });
 
 function writeFakeWav(
