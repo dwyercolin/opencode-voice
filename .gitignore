@@ -1,2 +1,6 @@
 node_modules/
 *.tgz
+
+# local notes / internal tooling - not published
+RESEARCH-*.md
+.opencode/
