@@ -169,9 +169,12 @@ engineering homophones) needs an LLM, but nothing to configure: when no
 `endpoint` is set, `/voice setup` can point cleanup at the opencode server
 you're already running, reusing whatever models you're logged in with -
 including free opencode Zen models (your `small_model` is preferred, since
-it's OpenCode's own setting for cheap auxiliary work). An explicit
-`endpoint`/`model` in `tui.json` always takes precedence; any OpenAI-compatible
-endpoint works.
+it's OpenCode's own setting for cheap auxiliary work). You can also browse
+every authed model `/models`-style from the same screen and pick any of them
+for cleanup only; small ones are shown first and the list starts filtered to
+just those. An explicit
+`endpoint`/`model` in `tui.json` always takes precedence; any
+OpenAI-compatible endpoint works.
 
 Configure your endpoint in `tui.json` via plugin options. Any OpenAI-compatible
 endpoint works (Anthropic, OpenAI, Ollama, vLLM, LM Studio, etc.). The `apiKeyEnv`
@@ -286,7 +289,16 @@ even with thinking enabled.
 
 On first run `/voice` is a short wizard: it installs nemo-speech if it is
 missing (in the background, with a progress bar in toasts), asks which model
-should clean up your dictation, and asks how the talk key should behave.
+should clean up your dictation, and asks how the talk key should behave. The
+cleanup step recommends your opencode `small_model`. **Test &
+auto-pick** probes your small models with a tiny real cleanup request (in
+parallel) and offers the survivors ranked by correction quality then speed —
+best match on top. **Browse all models** opens a `/models`-style picker —
+used only for cleaning dictation — fed by three merged sources (your opencode
+providers, the models.dev catalog for providers you're logged into, and the
+host server's `/v1/models`), showing **only small models** by default
+(fast + cheap; free models count as small), with a "Show all models" row at
+the bottom when the heuristic misses something you want.
 
 After that, `/voice` opens a settings screen showing every runtime setting
 with its current value — input mode, auto-submit, text cleanup, transcription
