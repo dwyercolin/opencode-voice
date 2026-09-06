@@ -219,7 +219,7 @@ For unauthenticated local endpoints (e.g. Ollama):
 - `trimSilence` _(optional)_ - whether to remove leading silence from recordings (default `true`). Set to `false` if your recordings are missing the first word or syllable
 - `voiceKey` _(optional)_ - keybind used for voice input (default `ctrl+r`). Accepts OpenCode keybind strings, e.g. `"ctrl+r"`, `"f2"`, or `"<leader>v"`
 - `voiceMode` _(optional)_ - default voice input mode when `/voice` has not set one at runtime: `"hold"` or `"tap"` (default `hold`)
-- `autoSubmit` _(optional)_ - in `/voice hold` mode, submit the prompt automatically when you release the key (default `false`; tap mode always submits on the second tap)
+- `autoSubmit` _(optional)_ - submit the prompt automatically when dictation finishes (hold: on key release; tap: on the second press; default `false` - text lands in the prompt for review)
 - `liveTranscript` _(optional)_ - show an interim transcription while recording (default `true`; local engines only)
 - `liveTranscriptTarget` _(optional)_ - where interim text appears: `"prompt"` (replaces the prompt text on each refresh, Claude Code-style — text you typed before dictating is stashed and restored afterwards; each refresh briefly flickers) or `"toast"` (default; floating, never touches your typing)
 - `liveTranscriptIntervalMs` _(optional)_ - how often the interim transcription refreshes (default `1200`, minimum `600`). Each refresh transcribes ALL audio so far, so the interim text self-corrects as more context arrives; the first words appear almost immediately after recording starts. On release only the audio since the last refresh is transcribed (plus a 1s overlap), then the LLM cleanup pass swaps in — no full re-transcription stall
@@ -290,8 +290,8 @@ Mirrors Claude Code's voice dictation:
   shows "keep holding", then recording starts. Release to stop, transcribe,
   and insert text into the prompt (add `"autoSubmit": true` to send it).
   A quick single tap is a no-op with a hint toast.
-- **Tap** — tap `ctrl+r` to start recording, tap again to stop, transcribe,
-  and submit.
+- **Tap** — tap `ctrl+r` to start recording, tap again to stop; the text
+  lands in the prompt for review (add `"autoSubmit": true` to send it).
 
 Hold detection works by watching key-repeat events, so it needs a terminal
 that emits auto-repeat while a key is held (virtually all do; if yours does
