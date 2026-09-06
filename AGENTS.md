@@ -26,8 +26,7 @@ npm run fmt:fix      # oxfmt --write .
 
 Verify changes: `npm run check` with zero errors.
 
-CI runs on every PR and push to main (lint, test, build). See
-RELEASE_PROCESS.md for release steps.
+CI runs on every PR and push to main (lint, test, build).
 
 ## Code style
 

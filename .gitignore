@@ -4,3 +4,4 @@ node_modules/
 # local notes / internal tooling - not published
 RESEARCH-*.md
 .opencode/
+RELEASE_PROCESS.md
