@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatAge, progressBar, spinnerBar } from "../lib/setup.js";
+import { formatAge, normalizeEndpoint, progressBar, spinnerBar } from "../lib/setup.js";
 
 test("renders a compact progress bar", () => {
   assert.equal(progressBar(0), "░░░░░░░░░░");
@@ -32,4 +32,18 @@ test("formatAge says whether probe results are fresh or reused", () => {
   assert.equal(formatAge(4 * 60_000), "tested 4m ago");
   assert.equal(formatAge(-5), "just tested");
   assert.equal(formatAge(null), "just tested");
+});
+
+test("normalizeEndpoint meets bare host:port halfway", () => {
+  assert.equal(normalizeEndpoint("localhost:11434"), "http://localhost:11434/v1");
+  assert.equal(normalizeEndpoint("http://127.0.0.1:1234"), "http://127.0.0.1:1234/v1");
+  assert.equal(normalizeEndpoint("https://openrouter.ai/api"), "https://openrouter.ai/api/v1");
+});
+
+test("normalizeEndpoint leaves a fully-qualified endpoint alone", () => {
+  assert.equal(normalizeEndpoint("http://127.0.0.1:11434/v1"), "http://127.0.0.1:11434/v1");
+  assert.equal(normalizeEndpoint("http://127.0.0.1:11434/v1/"), "http://127.0.0.1:11434/v1");
+  assert.equal(normalizeEndpoint("  http://x.test/v1  "), "http://x.test/v1");
+  assert.equal(normalizeEndpoint(""), "");
+  assert.equal(normalizeEndpoint(null), "");
 });

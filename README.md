@@ -301,7 +301,12 @@ used only for cleaning dictation — fed by three merged sources (your opencode
 providers, the models.dev catalog for providers you're logged into, and the
 host server's `/v1/models`), showing **only small models** by default
 (fast + cheap; free models count as small), with a "Show all models" row at
-the bottom when the heuristic misses something you want.
+the bottom when the heuristic misses something you want. **Use a custom
+endpoint** points cleanup at any OpenAI-compatible server instead — local
+Ollama/LM Studio, a proxy, a free-tier provider — prompting for URL, model,
+and an optional API-key env var, probing it with a real cleanup request
+before saving. Handy when the host server is rate-limit gated: a throttled
+subscription plan 429s every model through the host, free ones included.
 
 After that, `/voice` opens a settings screen showing every runtime setting
 with its current value — input mode, auto-submit, text cleanup, transcription

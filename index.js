@@ -49,6 +49,22 @@ export default {
         if (mode === "skip") {
           return { text: null, error: "Cleanup disabled (run /voice setup to enable)" };
         }
+        if (mode === "custom") {
+          // Picked at runtime via /voice: a direct OpenAI-compatible endpoint
+          // that bypasses the host server entirely.
+          const endpoint = kv.get("cleanup.endpoint");
+          const model = kv.get("cleanup.model");
+          if (!endpoint || !model) {
+            return { text: null, error: "Custom cleanup endpoint not configured (run /voice)" };
+          }
+          req.config = {
+            ...req.config,
+            endpoint,
+            model,
+            apiKeyEnv: kv.get("cleanup.apiKeyEnv") || undefined,
+          };
+          return baseComplete(req);
+        }
         if (mode !== "opencode") {
           return { text: null, error: "Cleanup not configured (run /voice setup)" };
         }
