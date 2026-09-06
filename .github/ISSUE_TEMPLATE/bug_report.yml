@@ -9,9 +9,9 @@ body:
   - type: input
     id: plugin-version
     attributes:
-      label: Plugin version
-      description: "Run: npm list @renjfk/opencode-voice"
-      placeholder: "0.1.2"
+      label: Plugin commit
+      description: "This fork installs from source. Run: git rev-parse --short HEAD"
+      placeholder: "2376ebd"
     validations:
       required: true
 
@@ -29,7 +29,10 @@ body:
     attributes:
       label: Operating system
       options:
+        - Linux
+        - WSL2
         - macOS (Apple Silicon)
+        - macOS (Intel)
     validations:
       required: true
 
@@ -38,9 +41,11 @@ body:
     attributes:
       label: Affected feature
       options:
-        - Speech-to-text (STT)
-        - Text-to-speech (TTS)
-        - LLM normalization
+        - Recording / microphone
+        - Transcription (nemo-speech)
+        - Live transcription in the prompt
+        - Text cleanup (LLM)
+        - Cleanup model picker (/voice)
         - Plugin loading
         - Other
     validations:
