@@ -16,7 +16,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/renjfk/opencode-voice.git"
+    "url": "git+https://github.com/dwyercolin/opencode-voice.git"
   },
   "files": [
     "index.js",
