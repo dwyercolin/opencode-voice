@@ -4,120 +4,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import * as engines from "../lib/engines.js";
-import {
-  buildMultipartTranscriptionRequest,
-  buildNemoArgs,
-  buildOpenRouterTranscriptionRequest,
-  buildWhisperArgs,
-  findVadModel,
-  isOpenRouterEndpoint,
-  sliceWavFrom,
-  snapshotPartialWav,
-} from "../lib/engines.js";
+import { buildNemoArgs, sliceWavFrom, snapshotPartialWav } from "../lib/engines.js";
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "opencode-voice-engines-"));
 }
-
-test("detects OpenRouter STT endpoints", () => {
-  assert.equal(isOpenRouterEndpoint("https://openrouter.ai/api/v1"), true);
-  assert.equal(isOpenRouterEndpoint("https://openrouter.ai/api/v1/"), true);
-  assert.equal(isOpenRouterEndpoint("https://api.openai.com/v1"), false);
-});
-
-test("builds OpenRouter STT requests as JSON with base64 audio", () => {
-  const audioBuffer = Buffer.from("RIFFfakewav", "utf8");
-  const request = buildOpenRouterTranscriptionRequest(
-    "openai/whisper-large-v3-turbo",
-    audioBuffer,
-    "secret",
-  );
-
-  assert.deepEqual(request.headers, {
-    "Content-Type": "application/json",
-    Authorization: "Bearer secret",
-  });
-
-  const body = JSON.parse(request.body);
-  assert.deepEqual(body, {
-    model: "openai/whisper-large-v3-turbo",
-    input_audio: {
-      data: audioBuffer.toString("base64"),
-      format: "wav",
-    },
-  });
-});
-
-test("builds multipart STT requests with auth header", () => {
-  const audioBuffer = Buffer.from("RIFFfakewav", "utf8");
-  const request = buildMultipartTranscriptionRequest("whisper-large-v3-turbo", audioBuffer, "key1");
-
-  assert.equal(request.headers.Authorization, "Bearer key1");
-  assert.equal(request.body instanceof FormData, true);
-  assert.equal(request.body.get("model"), "whisper-large-v3-turbo");
-});
-
-test("builds whisper-cli args with language", () => {
-  assert.deepEqual(buildWhisperArgs("/models/ggml.bin", "/tmp/a.wav", "zh"), [
-    "-m",
-    "/models/ggml.bin",
-    "-f",
-    "/tmp/a.wav",
-    "-l",
-    "zh",
-    "-np",
-    "-nt",
-  ]);
-  assert.deepEqual(buildWhisperArgs("/models/ggml.bin", "/tmp/a.wav", null), [
-    "-m",
-    "/models/ggml.bin",
-    "-f",
-    "/tmp/a.wav",
-    "-l",
-    "auto",
-    "-np",
-    "-nt",
-  ]);
-});
-
-test("builds whisper-cli args with Silero VAD when a model is provided", () => {
-  assert.deepEqual(
-    buildWhisperArgs("/models/ggml.bin", "/tmp/a.wav", "en", "/models/ggml-silero-v6.2.0.bin"),
-    [
-      "-m",
-      "/models/ggml.bin",
-      "-f",
-      "/tmp/a.wav",
-      "-l",
-      "en",
-      "-np",
-      "-nt",
-      "--vad",
-      "--vad-model",
-      "/models/ggml-silero-v6.2.0.bin",
-    ],
-  );
-  // No VAD model means no VAD flags
-  const withoutVad = buildWhisperArgs("/m.bin", "/tmp/a.wav", "en", null);
-  assert.equal(withoutVad.includes("--vad"), false);
-});
-
-test("finds VAD models, preferring newer versions across dirs", () => {
-  const dirA = makeTempDir();
-  const dirB = makeTempDir();
-  try {
-    fs.writeFileSync(path.join(dirA, "ggml-silero-v5.1.2.bin"), "x");
-    fs.writeFileSync(path.join(dirB, "ggml-silero-v6.2.0.bin"), "x");
-
-    assert.equal(findVadModel([dirA, dirB]), path.join(dirB, "ggml-silero-v6.2.0.bin"));
-    assert.equal(findVadModel([dirA]), path.join(dirA, "ggml-silero-v5.1.2.bin"));
-    assert.equal(findVadModel([makeTempDir()]), null);
-  } finally {
-    fs.rmSync(dirA, { recursive: true, force: true });
-    fs.rmSync(dirB, { recursive: true, force: true });
-  }
-});
 
 test("builds nemo-speech transcribe args with and without a model", () => {
   assert.deepEqual(buildNemoArgs("/tmp/a.wav"), ["--quiet", "transcribe", "/tmp/a.wav"]);
@@ -172,14 +63,11 @@ test("rejects snapshots with no usable audio yet", () => {
     const src = path.join(dir, "rec.wav");
     const dst = path.join(dir, "partial.wav");
 
-    // Missing source
     assert.equal(snapshotPartialWav(path.join(dir, "nope.wav"), dst), false);
 
-    // Header only, no data bytes
     writeFakeWav(src, { audioBytes: 0 });
     assert.equal(snapshotPartialWav(src, dst), false);
 
-    // No data chunk at all
     writeFakeWav(src, { audioBytes: 32000, withDataChunk: false });
     assert.equal(snapshotPartialWav(src, dst), false);
   } finally {
@@ -229,15 +117,5 @@ test("sliceWavFrom handles clamping, zero-offset, and failures", () => {
     assert.equal(sliceWavFrom(path.join(dir, "nope.wav"), dst, 0), -1);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("model tables use valid identifiers for their CLIs", () => {
-  const { WHISPER_MODELS, NEMO_MODELS } = engines;
-  for (const v of Object.values(WHISPER_MODELS)) {
-    assert.match(v.file, /^ggml-.*\.bin$/);
-  }
-  for (const key of Object.keys(NEMO_MODELS)) {
-    assert.equal(key === "" || /^[a-z0-9.-]+$/.test(key), true);
   }
 });

@@ -11,15 +11,15 @@ Hold `ctrl+r`, talk, and a live transcription streams into your prompt. When
 you release, an LLM cleanup pass fixes punctuation, filler words, and software
 engineering homophones ("Jason" to "JSON", "bullion" to "boolean").
 
+Transcription runs locally with NVIDIA's Parakeet/Nemotron models via
+[NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp) - more accurate
+than Whisper on English, structurally immune to silence hallucination, and it
+punctuates natively. The `/voice` setup wizard installs everything.
+
 Voice input works like Claude Code's `/voice`: activate **hold** mode and hold
 `ctrl+r` to talk — an animated "Listening..." indicator stays up while you
 speak and a live transcription appears in the prompt — or **tap** mode and tap
 to start/stop.
-Transcribe locally with [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
-(now with Silero VAD to stop silence hallucinations) or
-[NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp) running NVIDIA's
-Parakeet/Nemotron models, which are more accurate than Whisper and structurally
-immune to silence hallucination.
 
 ## Install
 
@@ -27,10 +27,8 @@ Add to your `tui.json` (create at `~/.config/opencode/tui.json` if it doesn't
 exist). After installing, run `/voice` in OpenCode: **Simple setup**
 detects your mic, installs/uses nemo-speech, and points cleanup at the models
 you're already logged into OpenCode with (including free opencode Zen models).
-**Advanced setup** asks about your language and hardware and recommends an
-engine/model accordingly — Parakeet for English, Nemotron or whisper.cpp for
-other languages, a small whisper model on modest hardware, or the
-transcription API when local compute isn't an option:
+**Advanced setup** picks the nemo-speech model — Parakeet for English,
+Nemotron for other languages:
 
 ```json
 {
@@ -84,76 +82,31 @@ rm -rf ~/.cache/opencode/packages/@renjfk/
 
 ### Speech-to-text
 
-The plugin records with `sox` and transcribes locally with one of two engines
-(selectable at runtime via `/stt-engine`):
-
-- **nemo-speech** (default) via [NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp),
-  running NVIDIA Parakeet/Nemotron models - better accuracy than Whisper,
-  structurally immune to silence hallucination, and no manual model setup
-  (the setup wizard installs it in the background - keep working, it notifies
-  when done - and the first transcription downloads the model automatically)
-- **whisper.cpp** via a `whisper-cli` binary - the fallback for multilingual
-  needs or existing installs (the wizard can download models)
-- **transcription API** - any OpenAI-compatible `/audio/transcriptions`
-  endpoint, for machines that can't run local models (configure `sttEndpoint`,
-  see below)
-
-Install `sox` first (it is covered in the OS-specific whisper sections below),
-then run `/voice`.
-
-#### Recommended engine: nemo-speech
-
-[NVIDIA's NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp) runs
-Parakeet and Nemotron ASR models locally with CPU/Metal/Vulkan/CUDA backends.
-On the HF Open ASR leaderboard, Parakeet TDT 0.6B v3 beats Whisper
-large-v3-turbo on English (~6.3% vs ~7.8% WER), and because it is a
-transducer (no autoregressive language-model decoder) it **cannot hallucinate
-text on silence** the way Whisper does. It also emits punctuation and
-capitalization natively.
-
-Install the CLI (macOS/Linux):
+Recording needs `sox`; transcription runs locally with
+[nemo-speech](https://github.com/NVIDIA/NeMo-Speech.cpp) (NVIDIA Parakeet /
+Nemotron models). The `/voice` setup wizard installs nemo-speech for you in
+the background - keep working, it notifies when done - or install manually:
 
 ```bash
 curl -fsSL https://github.com/NVIDIA/NeMo-Speech.cpp/raw/main/scripts/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Then run `/stt-engine` in OpenCode and pick **nemo-speech**. No manual model
-download is needed: the first transcription pulls the pinned GGUF (~700 MB,
-SHA-256-verified) into `~/.cache/nemo-speech/models`. Pick a specific model
-with `/stt-model`:
-
-- `parakeet-tdt` — Parakeet TDT 0.6B v3, best English accuracy
-- `nemotron-3.5` (CLI default) — multilingual streaming
-- `nemotron-en` — English streaming
-- `parakeet-ctc` — Parakeet CTC 1.1B, English
-
-Smoke-test outside OpenCode:
-
-```bash
-sox -d /tmp/smoke.wav trim 0 4   # say something for 4 seconds
-nemo-speech transcribe /tmp/smoke.wav
-rm /tmp/smoke.wav
-```
-
-#### Alternative engine: whisper.cpp
-
-The per-OS sections below install whisper.cpp; the microphone verification
-steps apply to both engines.
+No manual model download is needed: the first transcription pulls the pinned
+GGUF (~700 MB, SHA-256-verified) into `~/.cache/nemo-speech/models`. Pick a
+specific model with `/stt-model` (Parakeet TDT leads the Open ASR leaderboard
+for English and cannot hallucinate on silence; Nemotron covers other
+languages).
 
 #### macOS
 
-Install the `whisper-cpp` bottle (ships a `whisper-cli` with Metal enabled on
-Apple Silicon) and `sox`:
-
 ```bash
-brew install whisper-cpp sox
+brew install sox
 ```
 
 Verify your microphone by recording a 3-second clip and playing it back. The
 first `sox -d` invocation triggers a macOS microphone permission prompt —
-grant it in **System Settings → Privacy & Security → Microphone**, then rerun.
-Remove the temp file once you've heard yourself clearly:
+grant it in **System Settings → Privacy & Security → Microphone**, then rerun:
 
 ```bash
 sox -d /tmp/mic-check.wav trim 0 3   # speak for 3 seconds
@@ -161,14 +114,21 @@ play /tmp/mic-check.wav              # you should hear yourself
 rm /tmp/mic-check.wav                # delete after verification
 ```
 
-#### Linux (including WSL2)
-
-Install `sox` with its PulseAudio driver (a separate package on Debian/Ubuntu),
-the PulseAudio tools so the plugin can enumerate input devices via `pactl`,
-and the build tools for whisper.cpp:
+Smoke-test transcription:
 
 ```bash
-sudo apt install sox libsox-fmt-pulse pulseaudio-utils build-essential cmake
+sox -d /tmp/smoke.wav trim 0 4   # say something for 4 seconds
+nemo-speech transcribe /tmp/smoke.wav
+rm /tmp/smoke.wav
+```
+
+#### Linux (including WSL2)
+
+Install `sox` with its PulseAudio driver (a separate package on Debian/Ubuntu)
+plus the PulseAudio tools so the plugin can enumerate input devices:
+
+```bash
+sudo apt install sox libsox-fmt-pulse pulseaudio-utils
 ```
 
 On WSL2, make sure [WSLg](https://learn.microsoft.com/windows/wsl/tutorials/gui-apps)
@@ -190,9 +150,8 @@ If the source list is still empty after a restart, check Windows
 access" and "Let desktop apps access your microphone" (WSLg captures audio via
 a desktop RDP client), then run `wsl --update` for the latest WSLg.
 
-Verify your microphone by recording a 3-second clip and playing it back.
-Remove the temp file once you've heard yourself clearly; skip building
-whisper.cpp until this works, otherwise `/stt-mic` will have nothing to select:
+Verify your microphone before anything else, otherwise `/stt-mic` will have
+nothing to select:
 
 ```bash
 sox -d /tmp/mic-check.wav trim 0 3   # speak for 3 seconds
@@ -200,99 +159,8 @@ play /tmp/mic-check.wav              # you should hear yourself
 rm /tmp/mic-check.wav                # delete after verification
 ```
 
-`whisper-cli` is not packaged for Linux, so build whisper.cpp from source.
-Pick **one** of the two builds below.
-
-**CPU build** — works on any machine, adequate for `tiny`/`base`/`small`
-models:
-
-```bash
-git clone https://github.com/ggml-org/whisper.cpp ~/opt/whisper.cpp
-cmake -B ~/opt/whisper.cpp/build -S ~/opt/whisper.cpp \
-  -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_TESTS=OFF
-cmake --build ~/opt/whisper.cpp/build -j --target whisper-cli
-sudo ln -sf ~/opt/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
-```
-
-**CUDA build** — NVIDIA GPU, ~100× faster encode for `medium`/`large` models.
-Check your GPU with `nvidia-smi` and your toolkit with `nvcc --version`, then
-pick the arch code from the table:
-
-| GPU family    | Arch      | `CMAKE_CUDA_ARCHITECTURES` | Min. CUDA |
-| ------------- | --------- | -------------------------- | --------- |
-| RTX 20 / T4   | Turing    | `75`                       | 10.0      |
-| RTX 30 / A100 | Ampere    | `86`                       | 11.0      |
-| RTX 40 / L40  | Ada       | `89`                       | 11.8      |
-| H100          | Hopper    | `90`                       | 12.0      |
-| RTX 50 / B100 | Blackwell | `120`                      | 13.0      |
-
-```bash
-git clone https://github.com/ggml-org/whisper.cpp ~/opt/whisper.cpp
-cmake -B ~/opt/whisper.cpp/build -S ~/opt/whisper.cpp \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DGGML_CUDA=ON \
-  -DCMAKE_CUDA_ARCHITECTURES=89 \
-  -DWHISPER_BUILD_TESTS=OFF
-cmake --build ~/opt/whisper.cpp/build -j --target whisper-cli
-sudo ln -sf ~/opt/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
-```
-
-If you have multiple CUDA toolkits installed (e.g. Blackwell requires CUDA 13
-while the default `nvcc` is 12), also pass `-DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc`
-to point at the matching `nvcc`. CUDA runtime libraries are resolved via
-ldconfig; no `LD_LIBRARY_PATH` is needed.
-
 At runtime the plugin records through sox's `pulseaudio` driver when `pactl`
 is available, and falls back to sox's default device otherwise.
-
-#### Whisper model download & smoke test
-
-Download a whisper model to `~/.local/share/whisper-cpp/` (same path on both
-OSes):
-
-```bash
-mkdir -p ~/.local/share/whisper-cpp
-curl -L -o ~/.local/share/whisper-cpp/ggml-large-v3-turbo-q5_0.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin
-```
-
-Also download the Silero VAD model (~860 KB). When present, the plugin passes
-`--vad` to `whisper-cli` so silent audio is filtered before decoding — this is
-the main defense against Whisper hallucinating text ("Thanks for watching!",
-repeated phrases) on silence:
-
-```bash
-curl -L -o ~/.local/share/whisper-cpp/ggml-silero-v6.2.0.bin \
-  https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin
-```
-
-Requires whisper.cpp v1.7.5+ (older builds accept the retry path: the plugin
-detects the rejection and re-runs once without VAD). Set the `sttVad: false`
-plugin option to disable VAD entirely.
-
-Smoke-test the install by transcribing a short recording:
-
-```bash
-sox -d /tmp/smoke.wav trim 0 4   # say something for 4 seconds
-whisper-cli -m ~/.local/share/whisper-cpp/ggml-large-v3-turbo-q5_0.bin \
-  -f /tmp/smoke.wav -l auto -nt
-rm /tmp/smoke.wav
-```
-
-Check the first `system_info:` line in the output to confirm the expected
-backend is active:
-
-| Install                        | Expect                  |
-| ------------------------------ | ----------------------- |
-| macOS Homebrew (Apple Silicon) | `METAL = 1`             |
-| Linux CUDA build               | `CUDA : ARCHS = <n>`    |
-| CPU-only                       | `METAL = 0` / no `CUDA` |
-
-Reference `encode time` on a 4-second clip: CPU `medium` ≈ 15–30 s; CUDA
-`medium` ≈ 100–200 ms; CUDA `large-v3-turbo` ≈ 100–300 ms. Apple Silicon
-Metal timings are hardware-dependent but typically sub-second. If your GPU
-build shows CPU-level timings, the GPU backend failed to load — on Linux,
-re-check `nvidia-smi` and rebuild with the arch code from the table above.
 
 ### LLM endpoint
 
@@ -348,7 +216,6 @@ For unauthenticated local endpoints (e.g. Ollama):
 - `chatTemplateKwargs` _(optional)_ - extra keyword arguments passed to the model's chat template (e.g. `{"enable_thinking": false}` for Qwen models to disable chain-of-thought)
 - `retries` _(optional)_ - number of retry attempts for transient LLM failures
 - `tmpDir` _(optional)_ - directory used for the temporary STT recording file (default `/tmp`)
-- `sttLanguage` _(optional)_ - spoken language passed to local `whisper-cli -l` (default `auto`; any whisper.cpp language code, e.g. `en`, `zh`). Can be changed at runtime via `/stt-language`
 - `trimSilence` _(optional)_ - whether to remove leading silence from recordings (default `true`). Set to `false` if your recordings are missing the first word or syllable
 - `voiceKey` _(optional)_ - keybind used for voice input (default `ctrl+r`). Accepts OpenCode keybind strings, e.g. `"ctrl+r"`, `"f2"`, or `"<leader>v"`
 - `voiceMode` _(optional)_ - default voice input mode when `/voice` has not set one at runtime: `"hold"` or `"tap"` (default `hold`)
@@ -358,12 +225,7 @@ For unauthenticated local endpoints (e.g. Ollama):
 - `liveTranscriptIntervalMs` _(optional)_ - how often the interim transcription refreshes (default `1200`, minimum `600`). Each refresh transcribes ALL audio so far, so the interim text self-corrects as more context arrives; the first words appear almost immediately after recording starts. On release only the audio since the last refresh is transcribed (plus a 1s overlap), then the LLM cleanup pass swaps in — no full re-transcription stall
 - `normalizeTimeoutMs` _(optional)_ - how long to wait for the post-release LLM cleanup before falling back to the raw transcription (default `10000`). Prior prompt text stays stashed until the final swap, so keep this low if your normalization endpoint is slow
 - `sttNormalize` _(optional)_ - set `false` to disable the LLM cleanup pass entirely (default `true`). When enabled, cleanup is skipped automatically for transcriptions that already look clean (punctuated, no filler words, no likely STT homophones like "locks"/"bullion"), so well-formed dictation finalizes instantly without an LLM round trip
-- `sttVad` _(optional)_ - pass Silero VAD flags to `whisper-cli` when a VAD model is present (default `true`)
 - `autoGain` _(optional)_ - measure each recording and boost quiet input (below ~-32 dB RMS) before transcription, up to +28 dB with a limiter (default `true`). Toggle at runtime with `/stt-gain`
-- `sttEndpoint` _(optional)_ - OpenAI-compatible base URL with `/audio/transcriptions` support, enabling the API engine
-- `sttModel` _(optional)_ - model name for the API engine (default: `whisper-large-v3-turbo`)
-- `sttApiKeyEnv` _(optional)_ - environment variable containing the API-engine key
-- `sttEngine` _(optional)_ - default transcription engine: `"nemo"`, `"whisper"`, or `"api"` (default: `nemo` when `nemo-speech` is installed, else `whisper`, else `api` when configured). `/stt-engine` overrides at runtime
 - `sttNemoModel` _(optional)_ - default nemo-speech model short name (default: the CLI's own default, `nemotron-3.5`). For English dictation, `parakeet-tdt` is faster and more accurate
 
 ### Logging
@@ -377,7 +239,7 @@ child processes, API calls, or unexpected exceptions use `error`.
 
 The LLM cleanup pass works with any OpenAI-compatible endpoint, including
 local servers, so the whole plugin can run offline (transcription already is
-local via whisper.cpp or nemo-speech). With [LM Studio](https://lmstudio.ai)
+local via nemo-speech). With [LM Studio](https://lmstudio.ai)
 for example:
 
 ```bash
@@ -410,17 +272,15 @@ even with thinking enabled.
 
 ### Speech-to-text
 
-| Command         | Keybind  | Description                                   |
-| --------------- | -------- | --------------------------------------------- |
-| `/voice`        |          | Voice input mode: hold (push-to-talk) or tap  |
-| `/stt-record`   | `ctrl+r` | Record via active voice mode, then transcribe |
-| `/stt-submit`   |          | Stop recording, transcribe, and submit        |
-| `/stt-stop`     |          | Cancel recording                              |
-| `/stt-engine`   |          | Select engine: nemo / whisper / API           |
-| `/stt-model`    |          | Select model for the active engine            |
-| `/stt-gain`     |          | Toggle auto-gain                              |
-| `/stt-language` |          | Select transcription language (whisper only)  |
-| `/stt-mic`      |          | Select microphone                             |
+| Command       | Keybind  | Description                                   |
+| ------------- | -------- | --------------------------------------------- |
+| `/voice`      |          | Voice input mode: hold (push-to-talk) or tap  |
+| `/stt-record` | `ctrl+r` | Record via active voice mode, then transcribe |
+| `/stt-submit` |          | Stop recording, transcribe, and submit        |
+| `/stt-stop`   |          | Cancel recording                              |
+| `/stt-model`  |          | Select nemo-speech model                      |
+| `/stt-gain`   |          | Toggle auto-gain                              |
+| `/stt-mic`    |          | Select microphone                             |
 
 #### Voice input modes (`/voice`)
 
@@ -474,16 +334,11 @@ transcribed, merged with the interim text, and the LLM cleanup pass (punctuation
 homophones) swaps in the final result — typically 1-2s with the prompt
 showing your text the whole time. Each refresh is a fresh one-shot pass over
 the audio so far, so it works with every local engine (including offline-only
-models like Parakeet TDT; disabled automatically for the API engine to
-avoid per-tick uploads). Set `liveTranscript: false` to turn it off entirely.
+models like Parakeet TDT). Set `liveTranscript: false` to turn it off entirely.
 
 `/stt-mic` lists CoreAudio input devices on macOS, and PulseAudio sources on
 Linux (via `pactl`, monitor sources excluded). On systems without a supported
 device listing, "System default" uses sox's default device (`sox -d`).
-
-`/stt-language` offers a curated list of common languages (plus auto-detect)
-and only affects local `whisper-cli` transcription, not nemo-speech.
-Languages outside the list can be set via the `sttLanguage` plugin option.
 
 ## How it works
 
@@ -491,9 +346,7 @@ Languages outside the list can be set via the `sttLanguage` plugin option.
 
 1. `sox` records audio from your microphone (CoreAudio on macOS, PulseAudio on
    Linux when `pactl` is available, sox default device otherwise)
-2. The active engine transcribes locally: `nemo-speech` (Parakeet/Nemotron)
-   or `whisper-cli` (with Silero VAD pre-filtering so silence never reaches
-   the decoder)
+2. `nemo-speech` transcribes locally (Parakeet/Nemotron models)
 3. LLM normalizes the transcription: fixes punctuation, removes filler words,
    corrects software engineering homophones ("Jason" to "JSON", "bullion" to
    "boolean", etc.)
