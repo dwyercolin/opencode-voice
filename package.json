@@ -1,17 +1,17 @@
 {
-  "name": "@renjfk/opencode-voice",
+  "name": "@dwyercolin/opencode-voice",
   "version": "0.1.0",
-  "description": "Speech-to-text dictation for OpenCode. Hold ctrl+r and talk: live transcription streams into your prompt, with local nemo-speech/whisper engines and LLM cleanup through any OpenAI-compatible endpoint.",
+  "private": true,
+  "description": "Speech-to-text dictation for OpenCode. Hold ctrl+r and talk: live transcription streams into your prompt, transcribed locally with nemo-speech and cleaned up by your own OpenCode models or any OpenAI-compatible endpoint.",
   "keywords": [
+    "dictation",
+    "nemo-speech",
     "opencode",
-    "piper",
+    "parakeet",
     "plugin",
     "speech-to-text",
     "stt",
-    "text-to-speech",
-    "tts",
-    "voice",
-    "whisper"
+    "voice"
   ],
   "license": "MIT",
   "repository": {
