@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { progressBar, shortModelLabel, spinnerBar } from "../lib/setup.js";
+import { formatAge, progressBar, spinnerBar } from "../lib/setup.js";
 
 test("renders a compact progress bar", () => {
   assert.equal(progressBar(0), "░░░░░░░░░░");
@@ -22,12 +22,14 @@ test("renders an indeterminate spinner bar", () => {
   assert.equal(spinnerBar(-1), "█░░░░░░░░░");
 });
 
-test("shortModelLabel keeps the tail of long model ids", () => {
-  assert.equal(shortModelLabel("anthropic/claude-sonnet-4-5"), "anthropic/claude-sonnet-4-5");
-  assert.equal(shortModelLabel("abcdefghij", 10), "abcdefghij");
-  assert.equal(shortModelLabel("abcdefghijkl", 10), "…defghijkl");
-  assert.equal(shortModelLabel("abcdefghijkl", 10).length, 10);
-  assert.equal(shortModelLabel(""), "");
-  assert.equal(shortModelLabel(null), "");
-  assert.equal(shortModelLabel(undefined), "");
+test("formatAge says whether probe results are fresh or reused", () => {
+  // A run that just finished must not look like cached numbers.
+  assert.equal(formatAge(0), "just tested");
+  assert.equal(formatAge(4000), "just tested");
+  assert.equal(formatAge(40_000), "tested 40s ago");
+  assert.equal(formatAge(120_000), "tested 2m ago");
+  // Results expire at 5 minutes, so anything older is a re-probe.
+  assert.equal(formatAge(4 * 60_000), "tested 4m ago");
+  assert.equal(formatAge(-5), "just tested");
+  assert.equal(formatAge(null), "just tested");
 });

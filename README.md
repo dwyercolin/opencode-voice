@@ -16,10 +16,10 @@ Transcription runs locally with NVIDIA's Parakeet/Nemotron models via
 than Whisper on English, structurally immune to silence hallucination, and it
 punctuates natively. The `/voice` setup wizard installs everything.
 
-Voice input works like Claude Code's `/voice`: activate **hold** mode and hold
-`ctrl+r` to talk — an animated "Listening..." indicator stays up while you
-speak and a live transcription appears in the prompt — or **tap** mode and tap
-to start/stop.
+Voice input works like Claude Code's `/voice`: **push to talk** — hold `ctrl+r`
+and speak, with an animated "Listening..." indicator up and a live
+transcription appearing in the prompt — or **tap to toggle**, tapping once to
+start and again to stop.
 
 ## Install
 
@@ -221,8 +221,8 @@ For unauthenticated local endpoints (e.g. Ollama):
 - `tmpDir` _(optional)_ - directory used for the temporary STT recording file (default `/tmp`)
 - `trimSilence` _(optional)_ - whether to remove leading silence from recordings (default `true`). Set to `false` if your recordings are missing the first word or syllable
 - `voiceKey` _(optional)_ - keybind used for voice input (default `ctrl+r`). Accepts OpenCode keybind strings, e.g. `"ctrl+r"`, `"f2"`, or `"<leader>v"`
-- `voiceMode` _(optional)_ - default voice input mode when `/voice` has not set one at runtime: `"hold"` or `"tap"` (default `hold`)
-- `autoSubmit` _(optional)_ - submit the prompt automatically when dictation finishes, in hold mode on key release and in tap mode on the second press (default `false` - text lands in the prompt for review). Also toggleable at runtime from `/voice`
+- `voiceMode` _(optional)_ - default voice input mode when `/voice` has not set one at runtime: `"hold"` (push to talk) or `"tap"` (tap to toggle) (default `hold`)
+- `autoSubmit` _(optional)_ - submit the prompt automatically when dictation finishes, in push-to-talk mode on key release and in tap mode on the second press (default `false` - text lands in the prompt for review). Also toggleable at runtime from `/voice`
 - `liveTranscript` _(optional)_ - show an interim transcription while recording (default `true`; local engines only)
 - `liveTranscriptTarget` _(optional)_ - where interim text appears: `"prompt"` (replaces the prompt text on each refresh, Claude Code-style — text you typed before dictating is stashed and restored afterwards; each refresh briefly flickers) or `"toast"` (default; floating, never touches your typing)
 - `liveTranscriptIntervalMs` _(optional)_ - how often the interim transcription refreshes (default `1200`, minimum `600`). Each refresh transcribes ALL audio so far, so the interim text self-corrects as more context arrives; the first words appear almost immediately after recording starts. On release only the audio since the last refresh is transcribed (plus a 1s overlap), then the LLM cleanup pass swaps in — no full re-transcription stall
@@ -290,10 +290,13 @@ even with thinking enabled.
 On first run `/voice` is a short wizard: it installs nemo-speech if it is
 missing (in the background, with a progress bar in toasts), asks which model
 should clean up your dictation, and asks how the talk key should behave. The
-cleanup step recommends your opencode `small_model`. **Test &
-auto-pick** probes your small models with a tiny real cleanup request (in
-parallel) and offers the survivors ranked by correction quality then speed —
-best match on top. **Browse all models** opens a `/models`-style picker —
+cleanup step recommends your opencode `small_model`. **Test and auto-pick**
+probes your small models with a tiny real cleanup request (in parallel) and
+offers the survivors ranked by correction quality then speed — best match on
+top. Results are cached for five minutes, so reopening the picker reuses them
+instead of spending another round of requests; the title says how old the
+numbers are ("just tested", "tested 2m ago") and a **Test again** row re-probes
+every model on demand. **Browse all models** opens a `/models`-style picker —
 used only for cleaning dictation — fed by three merged sources (your opencode
 providers, the models.dev catalog for providers you're logged into, and the
 host server's `/v1/models`), showing **only small models** by default
@@ -310,16 +313,19 @@ to the same pickers.
 
 Mirrors Claude Code's voice dictation:
 
-- **Hold (push-to-talk)** — hold `ctrl+r` (or your `voiceKey`): a brief warmup
-  shows "keep holding", then recording starts. Release to stop, transcribe,
-  and insert text into the prompt (add `"autoSubmit": true` to send it).
+- **Push to talk** — hold `ctrl+r` (or your `voiceKey`): a brief warmup shows
+  "keep holding", then recording starts. Release to stop and transcribe.
   A quick single tap is a no-op with a hint toast.
-- **Tap** — tap `ctrl+r` to start recording, tap again to stop; the text
-  lands in the prompt for review (add `"autoSubmit": true` to send it).
+- **Tap to toggle** — tap `ctrl+r` to start recording, tap again to stop and
+  transcribe.
 
-Hold detection works by watching key-repeat events, so it needs a terminal
-that emits auto-repeat while a key is held (virtually all do; if yours does
-not, use tap mode). The mode persists across sessions via `api.kv`.
+Either way the text lands in the prompt for review; whether it is then sent is
+the separate **auto-submit** setting (off by default, toggleable from `/voice`
+or seeded with `"autoSubmit": true`).
+
+Push-to-talk detection works by watching key-repeat events, so it needs a
+terminal that emits auto-repeat while a key is held (virtually all do; if yours
+does not, use tap mode). The mode persists across sessions via `api.kv`.
 
 #### Auto-gain (`/stt-gain`)
 
@@ -375,7 +381,7 @@ device listing, "System default" uses sox's default device (`sox -d`).
    corrects software engineering homophones ("Jason" to "JSON", "bullion" to
    "boolean", etc.)
 4. Cleaned text is appended to the OpenCode prompt, or submitted immediately
-   in tap mode / hold mode with `autoSubmit`. If cleanup fails (e.g. LLM
+   when auto-submit is on. If cleanup fails (e.g. LLM
    endpoint unreachable or slow), the raw transcription is used so you never
    lose your input
 
@@ -417,7 +423,7 @@ at the local repo path, not the npm package name:
 
 ### Optional macOS Hammerspoon integration
 
-With `/voice hold` mode the built-in `ctrl+r` push-to-talk covers this flow,
+With `/voice` push-to-talk mode the built-in `ctrl+r` covers this flow,
 but if you want a **global** key that works outside the terminal window and
 you use macOS, [Hammerspoon](https://www.hammerspoon.org/), and
 [Ghostty](https://ghostty.org/), see

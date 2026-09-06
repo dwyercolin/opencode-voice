@@ -5,11 +5,13 @@ import {
   buildAudioHint,
   buildRecordArgs,
   combinePromptText,
+  disambiguateLabels,
   isWSL,
   needsNormalization,
   parsePactlSources,
   parsePactlSourcesShort,
   preferPunctuatedPartial,
+  shortDeviceId,
   stripOverlappingWords,
 } from "../lib/stt.js";
 
@@ -19,9 +21,10 @@ test("parses pactl JSON sources and filters out monitors", () => {
     { name: "RDPSource", description: "RDP Source" },
     { name: "alsa_input.usb-mic" },
   ]);
+  // The device id is for sox, not the picker: descriptions stand alone.
   assert.deepEqual(parsePactlSources(json), [
-    { name: "RDPSource", label: "RDP Source (RDPSource)" },
-    { name: "alsa_input.usb-mic", label: "alsa_input.usb-mic" },
+    { name: "RDPSource", label: "RDP Source" },
+    { name: "alsa_input.usb-mic", label: "usb-mic" },
   ]);
 });
 
@@ -32,6 +35,46 @@ test("parses pactl short sources and filters out monitors", () => {
     "",
   ].join("\n");
   assert.deepEqual(parsePactlSourcesShort(short), [{ name: "RDPSource", label: "RDPSource" }]);
+});
+
+test("shortDeviceId drops the alsa routing prefix and suffix", () => {
+  assert.equal(
+    shortDeviceId("alsa_input.usb-046d_Brio_100_254AP3-02.mono-fallback"),
+    "usb-046d_Brio_100_254AP3-02",
+  );
+  assert.equal(shortDeviceId("alsa_output.pci-0000_00_1f.3.analog-stereo"), "pci-0000_00_1f.3");
+  assert.equal(shortDeviceId("RDPSource"), "RDPSource");
+  assert.equal(shortDeviceId(""), "");
+  assert.equal(shortDeviceId(null), "");
+});
+
+test("identical device descriptions keep their ids to stay distinguishable", () => {
+  const json = JSON.stringify([
+    { name: "alsa_input.usb-046d_Brio_A-02.mono-fallback", description: "Brio 100 Mono" },
+    { name: "alsa_input.usb-046d_Brio_B-02.mono-fallback", description: "Brio 100 Mono" },
+    { name: "alsa_input.usb-yeti-00.analog-stereo", description: "Yeti Stereo" },
+  ]);
+  assert.deepEqual(parsePactlSources(json), [
+    {
+      name: "alsa_input.usb-046d_Brio_A-02.mono-fallback",
+      label: "Brio 100 Mono (usb-046d_Brio_A-02)",
+    },
+    {
+      name: "alsa_input.usb-046d_Brio_B-02.mono-fallback",
+      label: "Brio 100 Mono (usb-046d_Brio_B-02)",
+    },
+    // The unique one is left alone.
+    { name: "alsa_input.usb-yeti-00.analog-stereo", label: "Yeti Stereo" },
+  ]);
+});
+
+test("disambiguateLabels leaves unique labels untouched", () => {
+  const devices = [
+    { name: "alsa_input.a.mono-fallback", label: "Mic A" },
+    { name: "alsa_input.b.mono-fallback", label: "Mic B" },
+  ];
+  assert.deepEqual(disambiguateLabels(devices), devices);
+  assert.deepEqual(disambiguateLabels([]), []);
 });
 
 test("builds sox record args per audio backend", () => {
