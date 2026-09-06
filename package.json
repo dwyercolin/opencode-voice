@@ -1,7 +1,7 @@
 {
   "name": "@renjfk/opencode-voice",
   "version": "0.1.0",
-  "description": "Speech-to-text and text-to-speech for OpenCode. Record voice prompts with whisper-cpp, hear responses via Piper TTS, with LLM normalization through any OpenAI-compatible endpoint.",
+  "description": "Speech-to-text dictation for OpenCode. Hold ctrl+r and talk: live transcription streams into your prompt, with local nemo-speech/whisper engines and LLM cleanup through any OpenAI-compatible endpoint.",
   "keywords": [
     "opencode",
     "piper",

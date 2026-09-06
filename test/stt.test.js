@@ -3,43 +3,15 @@ import test from "node:test";
 
 import {
   buildAudioHint,
-  buildOpenRouterTranscriptionRequest,
   buildRecordArgs,
-  buildWhisperArgs,
-  isOpenRouterEndpoint,
+  combinePromptText,
   isWSL,
+  needsNormalization,
   parsePactlSources,
   parsePactlSourcesShort,
+  preferPunctuatedPartial,
+  stripOverlappingWords,
 } from "../lib/stt.js";
-
-test("detects OpenRouter STT endpoints", () => {
-  assert.equal(isOpenRouterEndpoint("https://openrouter.ai/api/v1"), true);
-  assert.equal(isOpenRouterEndpoint("https://openrouter.ai/api/v1/"), true);
-  assert.equal(isOpenRouterEndpoint("https://api.openai.com/v1"), false);
-});
-
-test("builds OpenRouter STT requests as JSON with base64 audio", () => {
-  const audioBuffer = Buffer.from("RIFFfakewav", "utf8");
-  const request = buildOpenRouterTranscriptionRequest(
-    "openai/whisper-large-v3-turbo",
-    audioBuffer,
-    "secret",
-  );
-
-  assert.deepEqual(request.headers, {
-    "Content-Type": "application/json",
-    Authorization: "Bearer secret",
-  });
-
-  const body = JSON.parse(request.body);
-  assert.deepEqual(body, {
-    model: "openai/whisper-large-v3-turbo",
-    input_audio: {
-      data: audioBuffer.toString("base64"),
-      format: "wav",
-    },
-  });
-});
 
 test("parses pactl JSON sources and filters out monitors", () => {
   const json = JSON.stringify([
@@ -110,25 +82,94 @@ test("detects WSL via environment variables", () => {
   }
 });
 
-test("builds whisper-cli args with language", () => {
-  assert.deepEqual(buildWhisperArgs("/models/ggml.bin", "/tmp/a.wav", "zh"), [
-    "-m",
-    "/models/ggml.bin",
-    "-f",
-    "/tmp/a.wav",
-    "-l",
-    "zh",
-    "-np",
-    "-nt",
-  ]);
-  assert.deepEqual(buildWhisperArgs("/models/ggml.bin", "/tmp/a.wav", null), [
-    "-m",
-    "/models/ggml.bin",
-    "-f",
-    "/tmp/a.wav",
-    "-l",
-    "auto",
-    "-np",
-    "-nt",
-  ]);
+test("stripOverlappingWords returns full tail when there is no previous text", () => {
+  assert.equal(stripOverlappingWords(null, "hello world"), "hello world");
+  assert.equal(stripOverlappingWords("", "hello world"), "hello world");
+});
+
+test("stripOverlappingWords strips repeated overlap despite punctuation and case", () => {
+  // Interim ends mid-sentence; the tail pass re-transcribes the last second
+  assert.equal(
+    stripOverlappingWords("fix the login bug in", "login bug in the auth module"),
+    "the auth module",
+  );
+  assert.equal(stripOverlappingWords("use the cache", "Use the cache, then flush"), "then flush");
+});
+
+test("stripOverlappingWords strips nothing when words genuinely differ", () => {
+  assert.equal(stripOverlappingWords("fix the logs", "and then deploy"), "and then deploy");
+});
+
+test("stripOverlappingWords caps the match window to avoid over-stripping", () => {
+  const prev = "one two three four five six";
+  const tail = "one two three four five six seven eight";
+  // Greedy match is capped at 6 words; the rest is kept
+  assert.equal(stripOverlappingWords(prev, tail), "seven eight");
+});
+
+test("preferPunctuatedPartial keeps punctuation when words are unchanged", () => {
+  // Observed with parakeet: same audio re-emitted without punctuation
+  assert.equal(
+    preferPunctuatedPartial(
+      "Great. This is great. This should be the working test.",
+      "great this is great this should be the working test",
+    ),
+    "Great. This is great. This should be the working test.",
+  );
+});
+
+test("preferPunctuatedPartial keeps punctuated text on one-word growth", () => {
+  assert.equal(
+    preferPunctuatedPartial("This should be it.", "this should be it now"),
+    "This should be it.",
+  );
+});
+
+test("preferPunctuatedPartial takes fresh text when it genuinely extends", () => {
+  assert.equal(
+    preferPunctuatedPartial("This should be it.", "This should be it. Plus more words"),
+    "This should be it. Plus more words",
+  );
+});
+
+test("preferPunctuatedPartial takes fresh text when words differ", () => {
+  assert.equal(
+    preferPunctuatedPartial("Fix the logs.", "Fix the cache now."),
+    "Fix the cache now.",
+  );
+});
+
+test("combinePromptText joins base and addition with a space", () => {
+  assert.equal(
+    combinePromptText("first dictation", "second dictation"),
+    "first dictation second dictation",
+  );
+  assert.equal(combinePromptText(null, "only"), "only");
+  assert.equal(combinePromptText("only", null), "only");
+  assert.equal(combinePromptText(null, null), null);
+});
+
+test("needsNormalization skips already-clean dictations", () => {
+  // Real benchmark cases where the LLM returned the input unchanged (4-26s wasted)
+  assert.equal(
+    needsNormalization(
+      "It works great, however it still clears everything any time I try to append using voice.",
+    ),
+    false,
+  );
+  assert.equal(needsNormalization("Can you set up my opencode to run the current update?"), false);
+  assert.equal(
+    needsNormalization("The live transcription is working now. Let's test another comment."),
+    false,
+  );
+});
+
+test("needsNormalization flags fillers, homophones, and missing punctuation", () => {
+  assert.equal(needsNormalization("um check the locks for the doc container"), true);
+  assert.equal(needsNormalization("the bullion flag is false and the cash layer"), true);
+  assert.equal(needsNormalization("yeah the umm transcription works"), true);
+  assert.equal(needsNormalization("this has no terminal punctuation"), true);
+  assert.equal(needsNormalization("starts lowercase but ends fine."), true);
+  assert.equal(needsNormalization(""), false);
+  assert.equal(needsNormalization(null), false);
 });

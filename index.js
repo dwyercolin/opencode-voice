@@ -1,73 +1,74 @@
-// opencode-voice: Speech-to-text and text-to-speech for OpenCode.
+// opencode-voice: Speech-to-text dictation for OpenCode.
 //
-// STT: Record voice via sox, transcribe with whisper-cpp, normalize with
-//      an OpenAI-compatible LLM, append to the TUI prompt.
-//
-// TTS: Auto-speak assistant responses (or read on demand) via Piper,
-//      with LLM normalization for natural speech.
+// STT: Record voice via sox, transcribe locally (nemo-speech or whisper.cpp),
+// show a live interim transcript in the prompt while talking, normalize with
+// an OpenAI-compatible LLM, append to the TUI prompt.
 //
 // Prerequisites:
-//   STT: brew install whisper-cpp sox
-//   TTS: Piper binary on PATH, voice models at ~/.local/share/piper-voices/
+//   sox for capture; nemo-speech or whisper-cli for transcription
 //
-// Configuration via tui.json plugin options:
+// Configuration via tui.json plugin options (all optional - /voice setup can
+// configure the rest at runtime):
 //   ["opencode-voice", { "endpoint": "...", "model": "...", "apiKeyEnv": "..." }]
 //
-// Runtime state (model, mic, voice, tts mode) persisted via api.kv.
+// When no endpoint is configured, the cleanup pass defaults to the host
+// opencode server (the user's own models, including free opencode Zen ones)
+// after running /voice setup.
+//
+// Runtime state (engine, model, mic, voice mode, cleanup mode) via api.kv.
 //
 // Commands:
-//   /stt-record (ctrl+r)  - start/stop recording + transcribe
-//   /stt-submit (leader+r)- stop recording + transcribe + submit
+//   /voice                - setup wizard (first run) / input mode picker
+//   /stt-record (ctrl+r)  - record via active voice mode, transcribe
+//   /stt-submit           - stop recording, transcribe, and submit
 //   /stt-stop             - cancel recording
-//   /stt-model            - select whisper model
-//   /stt-language         - select transcription language
+//   /stt-engine           - select engine: nemo-speech or whisper.cpp
+//   /stt-model            - select model for the active engine
+//   /stt-language         - select transcription language (whisper only)
+//   /stt-gain             - toggle auto-gain
 //   /stt-mic              - select microphone
-//   /tts-speak (leader+s)- read last response aloud
-//   /tts-mode (leader+v) - toggle auto TTS on/off
-//   /tts-stop (escape)   - stop playback
-//   /tts-voice           - select TTS voice
 
-import fs from "node:fs";
-import os from "node:os";
 import { registerSTT } from "./lib/stt.js";
-import { registerTTS } from "./lib/tts.js";
 import { createClient } from "./lib/llm-client.js";
 import { createLogger } from "./lib/logger.js";
-
-function loadPromptFile(filePath, logger, name) {
-  if (!filePath) return null;
-  const resolved = filePath.replace(/^~(?=\/|$)/, os.homedir());
-  try {
-    const prompt = fs.readFileSync(resolved, "utf-8").trim() || null;
-    logger?.log(
-      "plugin",
-      prompt ? `Loaded ${name} prompt: ${resolved}` : `Ignored empty ${name} prompt: ${resolved}`,
-      "debug",
-    );
-    return prompt;
-  } catch (err) {
-    logger?.log("Plugin", `Failed to load ${name} prompt ${resolved}: ${err.message}`, "warn");
-    return null;
-  }
-}
+import { resolveOpencodeCleanup } from "./lib/cleanup.js";
 
 export default {
   id: "opencode-voice",
   tui: async (api, options) => {
     const { kv } = api;
-    const logger = createLogger(api.client);
+    const client = api.client;
+    const logger = createLogger(client);
     logger.log("plugin", "Initializing", "debug");
-    const { complete } = createClient(options, logger);
+    const { complete: baseComplete } = createClient(options, logger);
 
-    const prompts = {
-      stt: loadPromptFile(options?.sttPrompt, logger, "STT"),
-      ttsAuto: loadPromptFile(options?.ttsAutoPrompt, logger, "TTS auto"),
-      ttsManual: loadPromptFile(options?.ttsManualPrompt, logger, "TTS manual"),
+    // Wrap the LLM client so cleanup can run without a configured endpoint:
+    // after /voice setup picks "use my opencode models", each call resolves
+    // the host server URL (dynamic port) and the user's small_model on the fly.
+    const complete = async (req) => {
+      if (!options?.endpoint) {
+        const mode = kv.get("cleanup.mode");
+        if (mode === "skip") {
+          return { text: null, error: "Cleanup disabled (run /voice setup to enable)" };
+        }
+        if (mode !== "opencode") {
+          return { text: null, error: "Cleanup not configured (run /voice setup)" };
+        }
+        const resolved = await resolveOpencodeCleanup(client, logger);
+        const model = kv.get("cleanup.model") || resolved?.model;
+        if (!resolved?.endpoint || !model) {
+          return {
+            text: null,
+            error: "opencode server unreachable - cleanup skipped (raw text kept)",
+          };
+        }
+        req.config = { ...req.config, endpoint: resolved.endpoint, model };
+      }
+      return baseComplete(req);
     };
 
-    const sttCommands = registerSTT(api, kv, complete, prompts, options, logger);
-    const ttsCommands = registerTTS(api, kv, complete, prompts, logger);
+    const sttCommands = registerSTT(api, kv, complete, options, logger);
 
-    api.command.register(() => [...sttCommands, ...ttsCommands]);
+    api.command.register(() => sttCommands);
   },
 };
