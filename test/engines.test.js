@@ -5,7 +5,9 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  binaryCommand,
   buildNemoArgs,
+  hasBinary,
   sliceWavFrom,
   snapshotPartialWav,
   soxInstallCommand,
@@ -36,6 +38,14 @@ test("sox install command names the system package manager", () => {
   );
   // Any other platform gets the Linux instruction rather than nothing.
   assert.equal(soxInstallCommand("win32"), soxInstallCommand("linux"));
+});
+
+test("binaryCommand falls back to the bare name when ~/.local/bin has no such file", () => {
+  assert.equal(binaryCommand("opencode-voice-no-such-binary"), "opencode-voice-no-such-binary");
+});
+
+test("hasBinary reports a missing binary as false", () => {
+  assert.equal(hasBinary("opencode-voice-no-such-binary"), false);
 });
 
 function writeFakeWav(
