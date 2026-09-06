@@ -29,7 +29,7 @@
 import { registerSTT } from "./lib/stt.js";
 import { createClient } from "./lib/llm-client.js";
 import { createLogger } from "./lib/logger.js";
-import { resolveOpencodeCleanup, runCleanupViaSession } from "./lib/cleanup.js";
+import { resolveOpencodeCleanup, runCleanup } from "./lib/cleanup.js";
 
 export default {
   id: "opencode-voice",
@@ -40,48 +40,45 @@ export default {
     logger.log("plugin", "Initializing", "debug");
     const { complete: baseComplete } = createClient(options, logger);
 
+    // Migration: "custom" was a runtime endpoint picked in /voice. Its stored
+    // endpoint and model mean nothing to the host server, so drop them rather
+    // than route cleanup at something no longer read.
+    if (kv.get("cleanup.mode") === "custom") {
+      logger.log("plugin", "Dropping obsolete custom cleanup endpoint setting", "debug");
+      for (const key of [
+        "cleanup.mode",
+        "cleanup.model",
+        "cleanup.endpoint",
+        "cleanup.apiKeyEnv",
+      ]) {
+        kv.set(key, "");
+      }
+    }
+
     // Wrap the LLM client so cleanup can run without a configured endpoint:
-    // after /voice setup picks "use my opencode models", each call resolves
-    // the host server URL (dynamic port) and the user's small_model on the fly.
+    // after /voice setup picks "use my opencode models", each call goes
+    // through the host server over whichever transport it serves, using the
+    // picked model or the user's small_model.
     const complete = async (req) => {
       if (!options?.endpoint) {
         const mode = kv.get("cleanup.mode");
         if (mode === "skip") {
           return { text: null, error: "Cleanup disabled (run /voice setup to enable)" };
         }
-        if (mode === "custom") {
-          // Picked at runtime via /voice: a direct OpenAI-compatible endpoint
-          // that bypasses the host server entirely.
-          const endpoint = kv.get("cleanup.endpoint");
-          const model = kv.get("cleanup.model");
-          if (!endpoint || !model) {
-            return { text: null, error: "Custom cleanup endpoint not configured (run /voice)" };
-          }
-          req.config = {
-            ...req.config,
-            endpoint,
-            model,
-            apiKeyEnv: kv.get("cleanup.apiKeyEnv") || undefined,
-          };
-          return baseComplete(req);
-        }
         if (mode !== "opencode") {
           return { text: null, error: "Cleanup not configured (run /voice setup)" };
         }
-        // "Use my opencode models" routes through the server's own chat
-        // (session.prompt - the same transport the TUI uses). The
-        // OpenAI-compat /v1 endpoint is auth-gated on some hosts and 429s
-        // every model there, gated or not, while session routing serves
-        // them; this matches how the model picker itself reaches providers.
         let model = kv.get("cleanup.model");
         if (!model) {
-          const resolved = await resolveOpencodeCleanup(client, logger);
+          const resolved = await resolveOpencodeCleanup(client, logger, { state: api.state });
           model = resolved?.model;
         }
         if (!model) {
           return { text: null, error: "No cleanup model picked (run /voice)" };
         }
-        return runCleanupViaSession(client, model, req.system, req.prompt, logger);
+        return runCleanup(client, model, req.system, req.prompt, logger, {
+          maxTokens: req.config?.maxTokens,
+        });
       }
       return baseComplete(req);
     };

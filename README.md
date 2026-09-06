@@ -230,6 +230,7 @@ For unauthenticated local endpoints (e.g. Ollama):
 - `sttNormalize` _(optional)_ - set `false` to disable the LLM cleanup pass entirely (default `true`). When enabled, cleanup is skipped automatically for transcriptions that already look clean (punctuated, no filler words, no likely STT homophones like "locks"/"bullion"), so well-formed dictation finalizes instantly without an LLM round trip
 - `autoGain` _(optional)_ - measure each recording and boost quiet input (below ~-32 dB RMS) before transcription, up to +28 dB with a limiter (default `true`). Toggle at runtime with `/stt-gain`
 - `sttNemoModel` _(optional)_ - default nemo-speech model short name (default: the CLI's own default, `nemotron-3.5`). For English dictation, `parakeet-tdt` is faster and more accurate
+- `debugLog` _(optional)_ - set `true` to trace the dictation pipeline to `opencode-voice-debug.log` in your temp directory (default `false`). The trace quotes transcribed text and the temp directory is world-readable on most systems, so turn it on only while diagnosing an issue
 
 ### Logging
 
@@ -291,22 +292,21 @@ On first run `/voice` is a short wizard: it installs nemo-speech if it is
 missing (in the background, with a progress bar in toasts), asks which model
 should clean up your dictation, and asks how the talk key should behave. The
 cleanup step recommends your opencode `small_model`. **Test and auto-pick**
-probes your small models with a tiny real cleanup request (in parallel) and
-offers the survivors ranked by correction quality then speed — best match on
-top. Results are cached for five minutes, so reopening the picker reuses them
-instead of spending another round of requests; the title says how old the
-numbers are ("just tested", "tested 2m ago") and a **Test again** row re-probes
-every model on demand. **Browse all models** opens a `/models`-style picker —
-used only for cleaning dictation — fed by three merged sources (your opencode
-providers, the models.dev catalog for providers you're logged into, and the
-host server's `/v1/models`), showing **only small models** by default
-(fast + cheap; free models count as small), with a "Show all models" row at
-the bottom when the heuristic misses something you want. **Use a custom
-endpoint** points cleanup at any OpenAI-compatible server instead — local
-Ollama/LM Studio, a proxy, a free-tier provider — prompting for URL, model,
-and an optional API-key env var, probing it with a real cleanup request
-before saving. Handy when the host server is rate-limit gated: a throttled
-subscription plan 429s every model through the host, free ones included.
+probes your small models with a tiny real cleanup request (a few at a time, so
+the probes don't trip the rate limit they're measuring) and offers the ones
+that answered, ranked by correction quality then speed — best match on top.
+Models that failed stay listed below them, greyed out, with the reason
+(`HTTP 429`, `HTTP 401`, and so on) rather than silently disappearing.
+Successful results are cached for five minutes, so reopening the picker reuses
+them instead of spending another round of requests; the title says how old the
+numbers are ("just tested", "tested 2m ago") and a **Test again** row
+re-checks the connection and re-probes every model on demand. **Browse all
+models** opens a `/models`-style picker — used only for cleaning dictation —
+fed by merged sources (the TUI's own provider list, the server's
+`/config/providers` where it exists, the host server's `/v1/models`, and the
+models.dev catalog for providers those lists named), showing **only small
+models** by default (fast + cheap; free models count as small), with a "Show
+all models" row at the bottom when the heuristic misses something you want.
 
 After that, `/voice` opens a settings screen showing every runtime setting
 with its current value — input mode, auto-submit, text cleanup, transcription
@@ -314,12 +314,13 @@ model, microphone, auto-gain — plus a "Run setup again" row. Toggles flip in
 place; pickers return to the screen. The `/stt-*` commands below are shortcuts
 to the same pickers.
 
-> **Zen free models on gated hosts.** Some setups gate the server's
-> OpenAI-compatible `/v1` endpoint behind the active subscription (a throttled
-> Claude Max plan 429s every model there, free ones included). Zen
-> (`opencode/*`) cleanup models and their auto-pick probes therefore travel
-> through the server's own session chat instead — the same routing the TUI
-> uses — in throwaway sessions. Non-Zen models keep the `/v1` transport.
+> **How cleanup reaches your models.** There are two ways into the host
+> opencode server, and builds differ in which they serve: the
+> OpenAI-compatible `/v1/chat/completions` endpoint, and the server's own chat
+> routing (`session.prompt`, in a throwaway session — the transport the TUI
+> itself uses). The plugin detects which exist once per process and uses
+> whichever answered, preferring `/v1`. A per-model failure is reported
+> against that model, not treated as the whole transport being dead.
 
 #### Voice input modes
 

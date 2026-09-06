@@ -33,17 +33,25 @@ opencode host server involved.
 
 ### Reusable pieces already in place
 
-- `probeCleanupModels(baseUrl, models, logger)` in `lib/cleanup.js` is
-  endpoint-generic: it works against any OpenAI-compatible base URL, so
-  probing/ranking local models needs no new machinery.
 - `serverModelsToRows()` maps a `/v1/models` response to picker rows
   (no cost data from local servers → small-tagging falls back to the
   name/params heuristic in `isSmallModel`).
+- `rankProbeResults()` / `countProbeFixes()` / `mapWithConcurrency()` in
+  `lib/cleanup.js` are transport-agnostic, so ranking and pacing local probes
+  needs no new machinery.
+
+### What is NOT reusable as-is
+
+`probeCleanupModels(client, models, logger)` used to take a base URL and was
+endpoint-generic; it now goes through `runCleanup()`, which picks between the
+host server's `/v1` and its session routing. Probing an arbitrary local server
+means factoring the raw `/v1/chat/completions` call back out of `runCleanup`
+as its own entry point rather than calling `probeCleanupModels` directly.
 
 ### Open design questions
 
-- Where a local pick persists: today `index.js` routes cleanup through the
-  discovered host server unless tui.json pins an endpoint; a local selection
-  needs a per-selection endpoint (e.g. `cleanup.endpoint` in kv) and the
-  resolver must honor it.
+- Where a local pick persists: `index.js` routes cleanup through the host
+  server unless tui.json pins an endpoint, and there is no longer a runtime
+  endpoint in kv (the custom-endpoint flow was removed). A local selection
+  needs a per-selection endpoint stored somewhere and honored by the resolver.
 - Which ports to scan, timeout budget, and whether to ask before probing.

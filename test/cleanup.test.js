@@ -3,13 +3,18 @@ import test from "node:test";
 
 import {
   catalogRowsForProviders,
+  configCleanupCandidates,
   countProbeFixes,
   flattenProviderModels,
   isSmallModel,
+  mapWithConcurrency,
   mergeModelRows,
   parseListeningPorts,
+  providerIdsFromRows,
   rankProbeResults,
+  sdkData,
   serverModelsToRows,
+  stateProviderRows,
 } from "../lib/cleanup.js";
 
 test("parses listening loopback ports from /proc/net/tcp format", () => {
@@ -144,22 +149,34 @@ test("catalogRowsForProviders builds rows from a models.dev catalog", () => {
   assert.deepEqual(catalogRowsForProviders(catalog, null), []);
 });
 
-test("catalogRowsForProviders freeOnly keeps $0 models only", () => {
-  const catalog = {
-    opencode: {
-      models: {
-        "glm-4.7-free": { id: "glm-4.7-free", name: "GLM-4.7 Free", cost: { input: 0 } },
-        "glm-4.7": { id: "glm-4.7", name: "GLM-4.7", cost: { input: 0.6 } },
-        unknown: { id: "unknown", name: "Unknown" },
-      },
-    },
-  };
-  const rows = catalogRowsForProviders(catalog, ["opencode"], { freeOnly: true });
+test("providerIdsFromRows collects the providers the observed lists named", () => {
+  assert.deepEqual(
+    providerIdsFromRows([
+      [{ id: "anthropic/claude-haiku-4-5" }, { id: "anthropic/claude-opus-5" }],
+      [{ id: "zai/glm-4.5" }],
+      null,
+    ]),
+    ["anthropic", "zai"],
+  );
+  // Bare ids name no provider, so they must not widen the catalog filter.
+  assert.deepEqual(providerIdsFromRows([[{ id: "llama3.2" }, { id: "/leading" }, {}]]), []);
+  assert.deepEqual(providerIdsFromRows(null), []);
+});
+
+test("stateProviderRows reads the TUI's own provider list", () => {
+  const rows = stateProviderRows({
+    provider: [
+      { id: "anthropic", models: { "claude-haiku-4-5": { id: "claude-haiku-4-5" } } },
+      { id: "openai", models: { "gpt-5": { id: "gpt-5", cost: { input: 5 } } } },
+    ],
+  });
   assert.deepEqual(
     rows.map((r) => r.id),
-    ["opencode/glm-4.7-free"],
+    ["anthropic/claude-haiku-4-5", "openai/gpt-5"],
   );
-  assert.equal(rows[0].small, true); // free counts as small
+  // A host without the field must yield no rows rather than throwing.
+  assert.deepEqual(stateProviderRows({}), []);
+  assert.deepEqual(stateProviderRows(null), []);
 });
 
 test("mergeModelRows dedupes by id, keeps the first occurrence, sorts small first", () => {
@@ -197,4 +214,47 @@ test("rankProbeResults orders by working, then fixes, then latency", () => {
     ["fast-good", "slow-good", "mid", "fast-dumb", "broken"],
   );
   assert.deepEqual(rankProbeResults(null), []);
+});
+
+test("sdkData unwraps the response envelope and drops error responses", () => {
+  assert.deepEqual(sdkData({ data: { id: "ses_1" }, error: undefined }), { id: "ses_1" });
+  // An API error arrives as a value, not a throw - it must not read as data.
+  assert.equal(sdkData({ data: undefined, error: { message: "not found" } }), null);
+  // Older generations hand back the payload with no envelope at all.
+  assert.deepEqual(sdkData({ id: "ses_2" }), { id: "ses_2" });
+  assert.equal(sdkData({ data: undefined }), null);
+  assert.equal(sdkData(null), null);
+  assert.equal(sdkData("garbage"), null);
+});
+
+test("mapWithConcurrency keeps input order and respects the limit", async () => {
+  let running = 0;
+  let peak = 0;
+  const results = await mapWithConcurrency([10, 4, 8, 1, 6], 2, async (value, index) => {
+    running++;
+    peak = Math.max(peak, running);
+    await new Promise((resolve) => setTimeout(resolve, value));
+    running--;
+    return `${index}:${value}`;
+  });
+  assert.deepEqual(results, ["0:10", "1:4", "2:8", "3:1", "4:6"]);
+  assert.equal(peak, 2);
+});
+
+test("mapWithConcurrency handles empty input and limits above the item count", async () => {
+  assert.deepEqual(await mapWithConcurrency([], 4, async () => "x"), []);
+  assert.deepEqual(await mapWithConcurrency(null, 4, async () => "x"), []);
+  assert.deepEqual(await mapWithConcurrency([1, 2], 99, async (n) => n * 2), [2, 4]);
+});
+
+test("configCleanupCandidates prefers small_model, then the main model", () => {
+  assert.deepEqual(
+    configCleanupCandidates({ small_model: "anthropic/claude-haiku-4-5", model: "anthropic/opus" }),
+    ["anthropic/claude-haiku-4-5", "anthropic/opus"],
+  );
+  // Both fields set to the same model must not offer the same row twice.
+  assert.deepEqual(configCleanupCandidates({ small_model: "a/b", model: "a/b" }), ["a/b"]);
+  assert.deepEqual(configCleanupCandidates({ model: "a/b" }), ["a/b"]);
+  assert.deepEqual(configCleanupCandidates({}), []);
+  assert.deepEqual(configCleanupCandidates(null), []);
 });
