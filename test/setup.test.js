@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { progressBar, recommendNemoModel } from "../lib/setup.js";
+import { progressBar, spinnerBar } from "../lib/setup.js";
 
 test("renders a compact progress bar", () => {
   assert.equal(progressBar(0), "░░░░░░░░░░");
@@ -14,7 +14,10 @@ test("renders a compact progress bar", () => {
   assert.equal(progressBar(100, 4), "████");
 });
 
-test("recommends parakeet for English, CLI default otherwise", () => {
-  assert.equal(recommendNemoModel("en"), "parakeet-tdt");
-  assert.equal(recommendNemoModel("multi"), "");
+test("renders an indeterminate spinner bar", () => {
+  assert.equal(spinnerBar(0), "█░░░░░░░░░");
+  assert.equal(spinnerBar(3), "░░░█░░░░░░");
+  assert.equal(spinnerBar(9), "░░░░░░░░░█");
+  assert.equal(spinnerBar(10), "█░░░░░░░░░");
+  assert.equal(spinnerBar(-1), "█░░░░░░░░░");
 });

@@ -24,11 +24,11 @@ to start/stop.
 ## Install
 
 Add to your `tui.json` (create at `~/.config/opencode/tui.json` if it doesn't
-exist). After installing, run `/voice` in OpenCode: **Simple setup**
-detects your mic, installs/uses nemo-speech, and points cleanup at the models
-you're already logged into OpenCode with (including free opencode Zen models).
-**Advanced setup** picks the nemo-speech model — Parakeet for English,
-Nemotron for other languages:
+exist). After installing, run `/voice` in OpenCode: the setup wizard checks
+your mic, installs nemo-speech in the background if needed (with a loading
+bar — keep working, it notifies when done), and points text cleanup at the
+models you're already logged into OpenCode with (including free opencode Zen
+models):
 
 ```json
 {
