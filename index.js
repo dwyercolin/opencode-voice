@@ -68,23 +68,20 @@ export default {
         if (mode !== "opencode") {
           return { text: null, error: "Cleanup not configured (run /voice setup)" };
         }
-        const model = kv.get("cleanup.model");
-        // Zen ("opencode/*") models route through the server's own chat
-        // (session.prompt, the same transport the TUI uses): the OpenAI-compat
-        // /v1 endpoint is auth-gated on some hosts and 429s them even though
-        // the server itself serves them fine. Everything else keeps /v1.
-        if (model && model.startsWith("opencode/")) {
-          return runCleanupViaSession(client, model, req.system, req.prompt, logger);
+        // "Use my opencode models" routes through the server's own chat
+        // (session.prompt - the same transport the TUI uses). The
+        // OpenAI-compat /v1 endpoint is auth-gated on some hosts and 429s
+        // every model there, gated or not, while session routing serves
+        // them; this matches how the model picker itself reaches providers.
+        let model = kv.get("cleanup.model");
+        if (!model) {
+          const resolved = await resolveOpencodeCleanup(client, logger);
+          model = resolved?.model;
         }
-        const resolved = await resolveOpencodeCleanup(client, logger);
-        const endpointModel = model || resolved?.model;
-        if (!resolved?.endpoint || !endpointModel) {
-          return {
-            text: null,
-            error: "opencode server unreachable - cleanup skipped (raw text kept)",
-          };
+        if (!model) {
+          return { text: null, error: "No cleanup model picked (run /voice)" };
         }
-        req.config = { ...req.config, endpoint: resolved.endpoint, model: endpointModel };
+        return runCleanupViaSession(client, model, req.system, req.prompt, logger);
       }
       return baseComplete(req);
     };
