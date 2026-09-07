@@ -8,6 +8,7 @@ import {
   binaryCommand,
   buildNemoArgs,
   hasBinary,
+  invalidateBinaryCache,
   sliceWavFrom,
   snapshotPartialWav,
   soxInstallCommand,
@@ -46,6 +47,30 @@ test("binaryCommand falls back to the bare name when ~/.local/bin has no such fi
 
 test("hasBinary reports a missing binary as false", () => {
   assert.equal(hasBinary("opencode-voice-no-such-binary"), false);
+});
+
+test("hasBinary keys on executables on PATH, not on flag conventions", () => {
+  const dir = makeTempDir();
+  const savedPath = process.env.PATH;
+  process.env.PATH = `${dir}:${savedPath}`;
+  try {
+    const bin = path.join(dir, "opencode-voice-fake-bin");
+    // An executable file is found whether or not it understands --version:
+    // xclip exits nonzero on --version yet works fine, which the old
+    // execution probe misread as "not installed".
+    fs.writeFileSync(bin, "#!/bin/sh\nexit 0\n");
+    fs.chmodSync(bin, 0o755);
+    invalidateBinaryCache();
+    assert.equal(hasBinary("opencode-voice-fake-bin"), true);
+    // Losing the executable bit means not installed.
+    fs.chmodSync(bin, 0o644);
+    invalidateBinaryCache();
+    assert.equal(hasBinary("opencode-voice-fake-bin"), false);
+  } finally {
+    process.env.PATH = savedPath;
+    invalidateBinaryCache();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 function writeFakeWav(
