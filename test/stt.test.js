@@ -7,6 +7,7 @@ import {
   combinePromptText,
   disambiguateLabels,
   isWSL,
+  liveTranscriptTarget,
   needsNormalization,
   parsePactlSources,
   parsePactlSourcesShort,
@@ -215,4 +216,18 @@ test("needsNormalization flags fillers, homophones, and missing punctuation", ()
   assert.equal(needsNormalization("starts lowercase but ends fine."), true);
   assert.equal(needsNormalization(""), false);
   assert.equal(needsNormalization(null), false);
+});
+
+test("live transcript goes to the prompt unless toast is asked for by name", () => {
+  // A plugin loaded as a bare path has no options object, so the default must
+  // remain prompt rather than silently moving dictation into notifications.
+  assert.equal(liveTranscriptTarget(undefined), "prompt");
+  assert.equal(liveTranscriptTarget(null), "prompt");
+  assert.equal(liveTranscriptTarget(""), "prompt");
+  assert.equal(liveTranscriptTarget("prompt"), "prompt");
+  // Toast is opt-in and exact: a typo must not silently move dictation out of
+  // the prompt, which is the failure mode being removed.
+  assert.equal(liveTranscriptTarget("toast"), "toast");
+  assert.equal(liveTranscriptTarget("TOAST"), "prompt");
+  assert.equal(liveTranscriptTarget("nonsense"), "prompt");
 });

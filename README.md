@@ -209,7 +209,10 @@ All optional; `/voice` configures the common ones at runtime.
 - `liveTranscriptTarget` — `"prompt"` (default; Claude Code-style, words appear
   in the prompt bar as you speak and are replaced on each refresh, with a brief
   flicker) or `"toast"` (floating in the notification corner, never touches your
-  typing)
+  typing). This setting is obeyed as written: if the prompt cannot be updated,
+  the live view stops with an error naming the reason rather than quietly moving
+  your words to the notification corner. Dictation itself is unaffected — the
+  text still lands in the prompt when you release
 - `liveTranscriptIntervalMs` — refresh interval (default `1200`, minimum `600`)
 
 **Cleanup**

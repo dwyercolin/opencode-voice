@@ -58,8 +58,10 @@ release of its own yet, so all of it is unreleased.
   models, including free Zen ones — instead of requiring an OpenAI-compatible
   endpoint configured up front. A pinned `endpoint` in `tui.json` still wins.
 - **Live transcript defaults to the prompt bar.** Set
-  `liveTranscriptTarget: "toast"` for the old floating notification, which the
-  plugin also falls back to on its own if the prompt cannot be cleared.
+  `liveTranscriptTarget: "toast"` for the old floating notification. If the
+  prompt cannot be updated, the live preview now stops with a clear error
+  instead of silently moving dictation into the notification corner; final text
+  still lands in the prompt on release.
 - **Nothing downloads by itself.** The talk key refuses to record when the
   chosen model is not on disk and opens the download screen instead, rather than
   pulling ~700 MB inside the first transcription with the key wedged for its
