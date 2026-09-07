@@ -8,10 +8,12 @@ import {
   binaryCommand,
   buildNemoArgs,
   hasBinary,
+  hasVerifiedNemoModel,
   invalidateBinaryCache,
   sliceWavFrom,
   snapshotPartialWav,
   soxInstallCommand,
+  transcribeTimeoutMs,
 } from "../lib/engines.js";
 
 function makeTempDir() {
@@ -43,6 +45,28 @@ test("sox install command names the system package manager", () => {
 
 test("binaryCommand falls back to the bare name when ~/.local/bin has no such file", () => {
   assert.equal(binaryCommand("opencode-voice-no-such-binary"), "opencode-voice-no-such-binary");
+});
+
+test("hasVerifiedNemoModel keys on the CLI's .gguf.verified marker", () => {
+  const dir = makeTempDir();
+  try {
+    // Fresh install: cache dir missing or without verified models.
+    assert.equal(hasVerifiedNemoModel(path.join(dir, "missing")), false);
+    const modelDir = path.join(dir, "models", "nvidia", "parakeet-tdt-0.6b-v3", "abc123");
+    fs.mkdirSync(modelDir, { recursive: true });
+    fs.writeFileSync(path.join(modelDir, "parakeet-tdt.q8_0.gguf.partial"), "x");
+    assert.equal(hasVerifiedNemoModel(path.join(dir, "models")), false);
+    // The verification marker, exactly as the CLI leaves it.
+    fs.writeFileSync(path.join(modelDir, "parakeet-tdt.q8_0.gguf.verified"), "");
+    assert.equal(hasVerifiedNemoModel(path.join(dir, "models")), true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("transcribeTimeoutMs gives the first-run download room and stays tight after", () => {
+  assert.equal(transcribeTimeoutMs(false), 30 * 60_000);
+  assert.equal(transcribeTimeoutMs(true), 180_000);
 });
 
 test("hasBinary reports a missing binary as false", () => {

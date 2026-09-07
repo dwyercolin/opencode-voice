@@ -101,10 +101,13 @@ curl -fsSL https://github.com/NVIDIA/NeMo-Speech.cpp/raw/main/scripts/install.sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-No model download is needed: the first transcription pulls the pinned GGUF
-(~700 MB, SHA-256-verified) into `~/.cache/nemo-speech/models`. Switch models
-with `/stt-model` — Parakeet TDT leads the Open ASR leaderboard for English and
-cannot hallucinate on silence; Nemotron covers other languages.
+No model download is needed up front: `/voice` offers to pull the pinned GGUF
+(~700 MB, SHA-256-verified) into `~/.cache/nemo-speech/models` in the background
+during setup. If you skip that, the first transcription downloads it instead -
+the talk key reports the download instead of just sitting busy, and once the
+model is cached, transcription is instant. Switch models with `/stt-model` —
+Parakeet TDT leads the Open ASR leaderboard for English and cannot hallucinate
+on silence; Nemotron covers other languages.
 
 ### Linux (including WSL2)
 
