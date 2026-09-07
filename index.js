@@ -19,7 +19,7 @@
 //
 // Commands:
 //   /voice                - setup wizard (first run), then the settings hub
-//   /stt-record (ctrl+r)  - record via active voice mode, transcribe
+//   /stt-record            - record via active voice mode, transcribe
 //   /stt-submit           - stop recording, transcribe, and submit
 //   /stt-stop             - cancel recording
 //   /stt-model            - select nemo-speech model

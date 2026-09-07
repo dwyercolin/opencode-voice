@@ -252,8 +252,8 @@ calls). See the [OpenCode docs](https://opencode.ai/docs/troubleshooting/#logs).
 On first run `/voice` is a short wizard: install nemo-speech if missing, download
 the transcription model if it is not cached, pick the cleanup model, pick how the
 talk key behaves. After that it opens a settings screen showing every runtime
-setting with its current value — input mode,
-auto-submit, text cleanup, transcription model, microphone, auto-gain — plus a
+setting with its current value — talk key, input mode, auto-submit, text cleanup,
+transcription model, microphone, auto-gain — plus a
 "Run setup again" row. Toggles flip in place; pickers return to the screen. The
 `/stt-*` commands are shortcuts to the same pickers. Select the `← Back` row or
 press `Alt+Left` to return from a sub-screen; `Esc` closes the menu entirely.
@@ -273,10 +273,15 @@ Two ways to choose a cleanup model:
 
 ## Voice input modes
 
-- **Push to talk** — hold `ctrl+r` (or your `voiceKey`): a brief warmup shows
+- **Push to talk** — hold your configured talk key (default `ctrl+r`): a brief warmup shows
   "keep holding", then recording starts. Release to stop and transcribe. A quick
   single tap is a no-op with a hint toast.
-- **Tap to toggle** — tap `ctrl+r` to start, tap again to stop and transcribe.
+- **Tap to toggle** — tap your configured talk key to start, tap again to stop and transcribe.
+
+Choose **Talk key** in `/voice`, then press the key or modifier combination you
+want, such as `F2` or `Ctrl+Shift+K`. The new binding takes effect immediately and
+appears in the capture dialog; press Enter to save or Esc to cancel. It persists
+through `api.kv`.
 
 Either way the text lands in the prompt for review; whether it is then sent is
 the separate **auto-submit** setting. Push-to-talk detection watches key-repeat

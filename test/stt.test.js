@@ -5,6 +5,7 @@ import {
   buildAudioHint,
   buildRecordArgs,
   combinePromptText,
+  DEFAULT_VOICE_KEY,
   disambiguateLabels,
   isWSL,
   liveTranscriptTarget,
@@ -12,9 +13,135 @@ import {
   parsePactlSources,
   parsePactlSourcesShort,
   preferPunctuatedPartial,
+  registerSTT,
+  resolveVoiceKey,
   shortDeviceId,
   stripOverlappingWords,
 } from "../lib/stt.js";
+
+test("resolveVoiceKey prefers persisted, option, and default values in order", () => {
+  const values = new Map();
+  const kv = {
+    get(key, fallback) {
+      return values.has(key) ? values.get(key) : fallback;
+    },
+  };
+
+  assert.equal(resolveVoiceKey(kv, { voiceKey: " f2 " }), "f2");
+  assert.equal(resolveVoiceKey(kv, {}), DEFAULT_VOICE_KEY);
+
+  values.set("voice.key", " <leader>v ");
+  assert.equal(resolveVoiceKey(kv, { voiceKey: "f2" }), "<leader>v");
+  values.set("voice.key", "");
+  assert.equal(resolveVoiceKey(kv, { voiceKey: "f2" }), "f2");
+});
+
+test("/voice changes the active talk key binding", () => {
+  const values = new Map([["voice.setupDone", true]]);
+  const layers = [];
+  const toasts = [];
+  let rendered;
+  let closeCurrent;
+  let captureKey;
+  const api = {
+    client: { tui: {} },
+    keymap: {
+      formatKey(key) {
+        return key.ctrl ? `ctrl+${key.name}` : key.name;
+      },
+      intercept(name, handler) {
+        assert.equal(name, "key");
+        captureKey = handler;
+        return () => {
+          captureKey = undefined;
+        };
+      },
+      parseKeySequence(key) {
+        if (key === "invalid") throw new Error("invalid key");
+        return [key];
+      },
+      registerLayer(layer) {
+        const registration = { layer, disposed: false };
+        layers.push(registration);
+        return () => {
+          registration.disposed = true;
+        };
+      },
+    },
+    lifecycle: { onDispose() {} },
+    renderer: { width: 120 },
+    state: {},
+    ui: {
+      DialogAlert: (props) => props,
+      DialogPrompt: (props) => props,
+      DialogSelect: (props) => props,
+      toast(value) {
+        toasts.push(value);
+      },
+      dialog: {
+        replace(render, onClose) {
+          closeCurrent?.();
+          rendered = render();
+          closeCurrent = onClose;
+        },
+        setSize() {},
+        clear() {
+          const close = closeCurrent;
+          closeCurrent = undefined;
+          rendered = undefined;
+          close?.();
+        },
+        get open() {
+          return rendered !== undefined;
+        },
+      },
+    },
+  };
+  const kv = {
+    get(key, fallback) {
+      return values.has(key) ? values.get(key) : fallback;
+    },
+    set(key, value) {
+      values.set(key, value);
+    },
+  };
+  const logger = { log() {} };
+  const commands = registerSTT(
+    api,
+    kv,
+    async () => ({ text: null }),
+    { liveTranscript: false },
+    logger,
+  );
+
+  assert.equal(layers.length, 2);
+  commands[1].onSelect();
+  const keyRow = rendered.options.find((option) => option.value === "key");
+  keyRow.onSelect();
+  let consumed = false;
+  captureKey({
+    event: { name: "k", ctrl: true },
+    consume() {
+      consumed = true;
+    },
+  });
+
+  assert.match(rendered.message, /Selected: ctrl\+k/);
+  captureKey({
+    event: { name: "return" },
+    consume() {},
+  });
+
+  assert.equal(values.get("voice.key"), "ctrl+k");
+  assert.equal(layers[1].disposed, true);
+  assert.equal(layers[2].layer.bindings[0].key, "ctrl+k");
+  assert.equal(consumed, true);
+  assert.equal(toasts.at(-1).message, "Voice keybind: ctrl+k");
+
+  rendered.options.find((option) => option.value === "key").onSelect();
+  captureKey({ event: { name: "escape" }, consume() {} });
+  assert.equal(rendered, undefined);
+});
 
 test("parses pactl JSON sources and filters out monitors", () => {
   const json = JSON.stringify([
