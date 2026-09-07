@@ -70,11 +70,38 @@ test("missing-sox dialog keeps the install command on screen", () => {
   const t = mockTui();
   showSoxMissingDialog(t.api, (m) => t.toasts.push(m), { checkSox: () => false });
   const command = t.row("command");
-  assert.equal(command.disabled, true);
+  // DialogSelect silently drops rows with disabled: true, so the command must
+  // stay a selectable row - it is its own copy button.
+  assert.equal(command.disabled, undefined);
   assert.ok(String(command.title).includes("sudo apt install sox"));
   assert.equal(t.row("close").title.trim(), "Close");
   assert.equal(t.row("recheck").title.trim(), "Re-check");
   assert.equal(t.row("continue"), undefined);
+});
+
+test("selecting the command row copies it and says so", async () => {
+  const t = mockTui();
+  let copied = null;
+  showSoxMissingDialog(t.api, (m) => t.toasts.push(m), {
+    checkSox: () => false,
+    copy: (text) => {
+      copied = text;
+      return Promise.resolve(true);
+    },
+  });
+  await t.row("command").onSelect();
+  assert.equal(copied, soxInstallCommand());
+  assert.deepEqual(t.toasts, ["Install command copied - paste it into another terminal"]);
+});
+
+test("a failed copy leaves the command on screen and says so", async () => {
+  const t = mockTui();
+  showSoxMissingDialog(t.api, (m) => t.toasts.push(m), {
+    checkSox: () => false,
+    copy: () => Promise.resolve(false),
+  });
+  await t.row("command").onSelect();
+  assert.match(t.toasts[0], /[Cc]ould not copy/);
 });
 
 test("re-checking after installing sox closes the dialog and reports ready", () => {

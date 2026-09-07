@@ -41,8 +41,8 @@ OpenCode host server and broke on others.
   `{ data, error }` envelope and reports API errors as a _value_, so reading
   fields straight off the result silently yielded `undefined`.
 - **Auto-pick reports failures instead of hiding them.** Models that failed stay
-  on screen, greyed out, with the reason (`HTTP 429`, `HTTP 401`, …), and a
-  screen where everything failed still offers a way forward. Probes are capped
+  on screen with the reason (`HTTP 429`, `HTTP 401`, …), and a screen where
+  everything failed still offers a way forward. Probes are capped
   at 3 concurrent so the burst does not trip the rate limit it is measuring.
 - **The runtime "custom endpoint" flow was removed** from the `/voice` menu. An
   existing `custom` setting is cleared on startup.
@@ -252,7 +252,7 @@ Two ways to choose a cleanup model:
 - **Test and auto-pick** sends a tiny real cleanup request to each small model (a
   few at a time, so the probes do not trip the rate limit they are measuring) and
   ranks the ones that answered by correction quality then speed. Models that
-  failed stay listed below, greyed out, with the reason. Successful results are
+  failed stay listed below with the reason. Successful results are
   cached for five minutes — the title says how old they are, and **Test again**
   re-checks the connection and re-probes everything.
 - **Browse all models** is a `/models`-style picker fed by merged sources (the
