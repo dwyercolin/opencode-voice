@@ -42,8 +42,8 @@ release of its own yet, so all of it is unreleased.
 - **Per-model download state** — the model picker marks each model as
   downloaded, part-downloaded (enter resumes), downloading, or not downloaded,
   and the hub says whether the active model is actually on disk.
-- **Back rows on every `/voice` sub-screen**, so changing two settings no longer
-  means reopening the menu. Escape still closes.
+- **Back navigation on every `/voice` sub-screen** — select the visible `← Back`
+  row or press `Alt+Left`, while Escape still closes the menu entirely.
 - **Auto-submit toggle** at runtime, off by default: dictation lands in the
   prompt for review unless you turn it on.
 - `trimSilence` option to control sox silence trimming (Dror-Kaufman).

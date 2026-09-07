@@ -310,3 +310,16 @@ test("wizard variant swaps Close for Continue setup and installs the command", (
   assert.equal(continued, true);
   assert.equal(t.cleared.length, 1);
 });
+
+test("missing-sox dialog returns to its parent when one is provided", () => {
+  const t = mockTui();
+  let backCalls = 0;
+  showSoxMissingDialog(t.api, () => {}, {
+    back: () => backCalls++,
+    checkSox: () => false,
+  });
+  assert.equal(t.row("back").title.trim(), "← Back");
+  assert.equal(t.row("back").footer, "alt+left");
+  t.select("back");
+  assert.equal(backCalls, 1);
+});

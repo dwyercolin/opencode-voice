@@ -255,7 +255,8 @@ talk key behaves. After that it opens a settings screen showing every runtime
 setting with its current value — input mode,
 auto-submit, text cleanup, transcription model, microphone, auto-gain — plus a
 "Run setup again" row. Toggles flip in place; pickers return to the screen. The
-`/stt-*` commands are shortcuts to the same pickers.
+`/stt-*` commands are shortcuts to the same pickers. Select the `← Back` row or
+press `Alt+Left` to return from a sub-screen; `Esc` closes the menu entirely.
 
 Two ways to choose a cleanup model:
 

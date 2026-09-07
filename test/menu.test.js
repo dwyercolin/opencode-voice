@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DIALOG_WIDTHS, fitRows, rowWidth, shortLabel } from "../lib/menu.js";
+import {
+  BACK_KEY,
+  DIALOG_WIDTHS,
+  addBackRow,
+  createMenu,
+  fitRows,
+  rowWidth,
+  shortLabel,
+} from "../lib/menu.js";
 
 test("rowWidth budgets each dialog size minus row chrome", () => {
   assert.equal(rowWidth("medium"), DIALOG_WIDTHS.medium - 8);
@@ -137,4 +145,125 @@ test("fitRows tolerates empty input and missing titles", () => {
   const rows = fitRows([{ value: "a" }, { title: "abc", value: "b" }], 80);
   assert.equal(rows[0].title, "");
   assert.equal(rows[1].title, "abc");
+});
+
+test("addBackRow makes navigation visible and keeps its keyboard hint", () => {
+  let calls = 0;
+  const options = [{ title: "Choice", value: "choice" }];
+  assert.equal(
+    addBackRow(options, () => calls++, "keep the current choice"),
+    options,
+  );
+  assert.deepEqual(
+    { ...options[1], onSelect: undefined },
+    {
+      title: "← Back",
+      description: "keep the current choice",
+      footer: BACK_KEY,
+      value: "back",
+      onSelect: undefined,
+    },
+  );
+  options[1].onSelect();
+  assert.equal(calls, 1);
+});
+
+test("createMenu wires Alt+Left to the current parent only", () => {
+  let layer;
+  let rendered;
+  let closeCurrent;
+  let disposed = false;
+  let lifecycleDispose;
+  let registrations = 0;
+  const api = {
+    renderer: { width: 120 },
+    keymap: {
+      registerLayer(value) {
+        registrations++;
+        layer = value;
+        return () => {
+          disposed = true;
+        };
+      },
+    },
+    lifecycle: {
+      onDispose(fn) {
+        lifecycleDispose = fn;
+      },
+    },
+    ui: {
+      DialogSelect: (props) => props,
+      dialog: {
+        replace(render, onClose) {
+          closeCurrent?.();
+          rendered = render();
+          closeCurrent = onClose;
+        },
+        setSize() {},
+        clear() {
+          const close = closeCurrent;
+          closeCurrent = undefined;
+          rendered = undefined;
+          close?.();
+        },
+        get open() {
+          return Boolean(rendered);
+        },
+      },
+    },
+  };
+  const menu = createMenu(api);
+  createMenu(api);
+  assert.equal(registrations, 1);
+  let backCalls = 0;
+  menu({
+    title: "Child",
+    options: [{ title: "Choice", value: "choice" }],
+    back: () => backCalls++,
+  });
+
+  assert.equal(layer.enabled(), true);
+  assert.deepEqual(layer.bindings, [
+    { key: BACK_KEY, cmd: "opencode-voice.dialog.back", desc: "Back" },
+  ]);
+  layer.commands[0].run();
+  assert.equal(backCalls, 1);
+  assert.equal(rendered.skipFilter, false);
+  assert.equal(rendered.flat, true);
+  assert.equal(rendered.placeholder, "Filter options…");
+
+  const stale = menu.guard();
+  assert.equal(stale(), true);
+
+  menu({ title: "Parent", options: [{ title: "Choice", value: "choice" }] });
+  assert.equal(stale(), false);
+  assert.equal(layer.enabled(), false);
+  layer.commands[0].run();
+  assert.equal(backCalls, 1);
+
+  let replaced = 0;
+  menu({
+    title: "Replaced child",
+    options: [{ title: "Choice", value: "choice" }],
+    back: () => backCalls++,
+    onClose: () => replaced++,
+  });
+  menu({ title: "Replacement", options: [{ title: "Choice", value: "choice" }] });
+  assert.equal(replaced, 1);
+
+  let closed = 0;
+  menu({
+    title: "Child again",
+    options: [{ title: "Choice", value: "choice" }],
+    back: () => backCalls++,
+    onClose: () => closed++,
+  });
+  const closedRequest = menu.guard();
+  api.ui.dialog.clear();
+  assert.equal(closedRequest(), false);
+  assert.equal(layer.enabled(), false);
+  assert.equal(closed, 1);
+
+  lifecycleDispose();
+  assert.equal(disposed, true);
 });
