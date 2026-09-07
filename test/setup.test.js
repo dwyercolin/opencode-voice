@@ -86,7 +86,7 @@ test("selecting the command row copies it and says so", async () => {
     checkSox: () => false,
     copy: (text) => {
       copied = text;
-      return Promise.resolve(true);
+      return Promise.resolve("tool");
     },
   });
   await t.row("command").onSelect();
