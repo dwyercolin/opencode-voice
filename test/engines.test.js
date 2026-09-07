@@ -5,11 +5,17 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  DEFAULT_NEMO_MODEL,
+  NEMO_MODELS,
   binaryCommand,
   buildNemoArgs,
   hasBinary,
   hasVerifiedNemoModel,
   invalidateBinaryCache,
+  nemoModelRepo,
+  nemoModelState,
+  normalizeNemoModel,
+  parseNemoDownloadTotal,
   sliceWavFrom,
   snapshotPartialWav,
   soxInstallCommand,
@@ -47,21 +53,94 @@ test("binaryCommand falls back to the bare name when ~/.local/bin has no such fi
   assert.equal(binaryCommand("opencode-voice-no-such-binary"), "opencode-voice-no-such-binary");
 });
 
-test("hasVerifiedNemoModel keys on the CLI's .gguf.verified marker", () => {
+test("hasVerifiedNemoModel keys on the CLI's .gguf.verified marker, per model", () => {
   const dir = makeTempDir();
+  const cache = path.join(dir, "models");
   try {
     // Fresh install: cache dir missing or without verified models.
-    assert.equal(hasVerifiedNemoModel(path.join(dir, "missing")), false);
-    const modelDir = path.join(dir, "models", "nvidia", "parakeet-tdt-0.6b-v3", "abc123");
+    assert.equal(hasVerifiedNemoModel("parakeet-tdt", path.join(dir, "missing")), false);
+    const modelDir = path.join(cache, "nvidia", "parakeet-tdt-0.6b-v3", "abc123");
     fs.mkdirSync(modelDir, { recursive: true });
     fs.writeFileSync(path.join(modelDir, "parakeet-tdt.q8_0.gguf.partial"), "x");
-    assert.equal(hasVerifiedNemoModel(path.join(dir, "models")), false);
+    assert.equal(hasVerifiedNemoModel("parakeet-tdt", cache), false);
     // The verification marker, exactly as the CLI leaves it.
     fs.writeFileSync(path.join(modelDir, "parakeet-tdt.q8_0.gguf.verified"), "");
-    assert.equal(hasVerifiedNemoModel(path.join(dir, "models")), true);
+    assert.equal(hasVerifiedNemoModel("parakeet-tdt", cache), true);
+    // A cached model says nothing about the OTHER models: each one is its own
+    // download, and answering "yes" here for a model that is not on disk is
+    // what let a model switch stall inside a dictation.
+    assert.equal(hasVerifiedNemoModel("parakeet-ctc", cache), false);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("nemoModelRepo maps short names to the repo the CLI caches under", () => {
+  assert.equal(nemoModelRepo("nemotron-3.5"), "nvidia/nemotron-3.5-asr-streaming-0.6b");
+  assert.equal(nemoModelRepo("parakeet-ctc"), "nvidia/parakeet-ctc-1.1b");
+  // Settings written before every model had its own key hold "", which named
+  // the CLI's multilingual default. It must still resolve to a real repo -
+  // `pull` needs a name, and an empty one would build a bare `pull`.
+  assert.equal(nemoModelRepo(""), "nvidia/nemotron-3.5-asr-streaming-0.6b");
+  // A full repo id passes through, so a model outside the table still works.
+  assert.equal(nemoModelRepo("nvidia/whatever-1b"), "nvidia/whatever-1b");
+  assert.equal(nemoModelRepo("no-such-model"), "");
+});
+
+test("normalizeNemoModel tells 'unset' apart from 'the multilingual default'", () => {
+  // The bug this exists to prevent: "" read as unset in one place (falling
+  // back to Parakeet) and as a real choice in another (Nemotron), so setup
+  // downloaded one model and then demanded a second before moving on.
+  assert.equal(normalizeNemoModel(""), "nemotron-3.5");
+  assert.equal(normalizeNemoModel(undefined), DEFAULT_NEMO_MODEL);
+  assert.equal(normalizeNemoModel(null), DEFAULT_NEMO_MODEL);
+  // A stored choice is returned untouched, including a bare repo id.
+  assert.equal(normalizeNemoModel("parakeet-ctc"), "parakeet-ctc");
+  assert.equal(normalizeNemoModel("nvidia/whatever-1b"), "nvidia/whatever-1b");
+  // Every key it can return is one the CLI actually accepts.
+  assert.ok(NEMO_MODELS[normalizeNemoModel("")]);
+  assert.ok(NEMO_MODELS[normalizeNemoModel(undefined)]);
+});
+
+test("nemoModelState separates ready, part-downloaded, and missing", () => {
+  const dir = makeTempDir();
+  const cache = path.join(dir, "models");
+  try {
+    assert.deepEqual(nemoModelState("parakeet-ctc", cache), { status: "missing", bytes: 0 });
+    const modelDir = path.join(cache, "nvidia", "parakeet-ctc-1.1b", "abc123");
+    fs.mkdirSync(modelDir, { recursive: true });
+    fs.writeFileSync(path.join(modelDir, "parakeet-ctc.q8_0.gguf.partial"), "0123456789");
+    // A partial carries how far the download got, for a real percentage.
+    assert.deepEqual(nemoModelState("parakeet-ctc", cache), { status: "partial", bytes: 10 });
+    // The CLI leaves a .lock behind even on a COMPLETED download, so a lock
+    // must never be read as "still downloading".
+    fs.writeFileSync(path.join(modelDir, "parakeet-ctc.q8_0.gguf.lock"), "");
+    fs.writeFileSync(path.join(modelDir, "parakeet-ctc.q8_0.gguf.verified"), "");
+    assert.equal(nemoModelState("parakeet-ctc", cache).status, "ready");
+    // A name with no known repo cannot be probed at all; say so rather than
+    // reporting a missing download.
+    assert.equal(nemoModelState("no-such-model", cache).status, "unknown");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("parseNemoDownloadTotal reads the size the CLI announces before curl runs", () => {
+  // curl's own percentages only exist when stderr is a TTY, so this line is
+  // the only progress signal that survives the plugin's pipe.
+  assert.equal(
+    parseNemoDownloadTotal(
+      "[model] downloading nvidia/parakeet-ctc-1.1b@20e63a0f (asr, 1123.5 MiB)",
+    ),
+    Math.round(1123.5 * 1024 ** 2),
+  );
+  assert.equal(
+    parseNemoDownloadTotal("[model] downloading x (1.4 GiB)"),
+    Math.round(1.4 * 1024 ** 3),
+  );
+  assert.equal(parseNemoDownloadTotal("[model] license: CC-BY-4.0"), 0);
+  assert.equal(parseNemoDownloadTotal(""), 0);
+  assert.equal(parseNemoDownloadTotal(null), 0);
 });
 
 test("transcribeTimeoutMs gives the first-run download room and stays tight after", () => {

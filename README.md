@@ -101,13 +101,15 @@ curl -fsSL https://github.com/NVIDIA/NeMo-Speech.cpp/raw/main/scripts/install.sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-No model download is needed up front: `/voice` offers to pull the pinned GGUF
+The model is a separate download: `/voice` offers to pull the pinned GGUF
 (~700 MB, SHA-256-verified) into `~/.cache/nemo-speech/models` in the background
-during setup. If you skip that, the first transcription downloads it instead -
-the talk key reports the download instead of just sitting busy, and once the
-model is cached, transcription is instant. Switch models with `/stt-model` —
-Parakeet TDT leads the Open ASR leaderboard for English and cannot hallucinate
-on silence; Nemotron covers other languages.
+during setup, and you can keep working while it lands. Nothing ever downloads on
+its own — if you decline, dictation stays unavailable and the talk key opens the
+same download screen instead of recording, so a ~700 MB pull is never something
+a key press starts by surprise. Once the model is cached, transcription is
+instant. Switch models with `/stt-model` — Parakeet TDT leads the Open ASR
+leaderboard for English and cannot hallucinate on silence; Nemotron covers other
+languages.
 
 ### Linux (including WSL2)
 
@@ -204,9 +206,10 @@ All optional; `/voice` configures the common ones at runtime.
 
 - `liveTranscript` — show an interim transcription while recording (default
   `true`)
-- `liveTranscriptTarget` — `"toast"` (default; floating, never touches your
-  typing) or `"prompt"` (Claude Code-style; replaces the prompt text on each
-  refresh, with a brief flicker)
+- `liveTranscriptTarget` — `"prompt"` (default; Claude Code-style, words appear
+  in the prompt bar as you speak and are replaced on each refresh, with a brief
+  flicker) or `"toast"` (floating in the notification corner, never touches your
+  typing)
 - `liveTranscriptIntervalMs` — refresh interval (default `1200`, minimum `600`)
 
 **Cleanup**
@@ -243,9 +246,10 @@ calls). See the [OpenCode docs](https://opencode.ai/docs/troubleshooting/#logs).
 
 ### The `/voice` menu
 
-On first run `/voice` is a short wizard: install nemo-speech if missing, pick the
-cleanup model, pick how the talk key behaves. After that it opens a settings
-screen showing every runtime setting with its current value — input mode,
+On first run `/voice` is a short wizard: install nemo-speech if missing, download
+the transcription model if it is not cached, pick the cleanup model, pick how the
+talk key behaves. After that it opens a settings screen showing every runtime
+setting with its current value — input mode,
 auto-submit, text cleanup, transcription model, microphone, auto-gain — plus a
 "Run setup again" row. Toggles flip in place; pickers return to the screen. The
 `/stt-*` commands are shortcuts to the same pickers.
