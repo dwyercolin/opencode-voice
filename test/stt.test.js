@@ -8,6 +8,7 @@ import {
   DEFAULT_VOICE_KEY,
   disambiguateLabels,
   isWSL,
+  isPromptEditingKey,
   liveTranscriptTarget,
   needsNormalization,
   parsePactlSources,
@@ -16,6 +17,7 @@ import {
   registerSTT,
   resolveVoiceKey,
   shortDeviceId,
+  stripOverlappingCharacters,
   stripOverlappingWords,
 } from "../lib/stt.js";
 
@@ -278,6 +280,13 @@ test("stripOverlappingWords caps the match window to avoid over-stripping", () =
   assert.equal(stripOverlappingWords(prev, tail), "seven eight");
 });
 
+test("stripOverlappingCharacters deduplicates Chinese text without spaces", () => {
+  assert.equal(stripOverlappingCharacters("你好世界", "世界你好"), "你好");
+  assert.equal(stripOverlappingCharacters("你好，世界", "世界！今天"), "！今天");
+  // A one-character match is too ambiguous to remove at a transcript boundary.
+  assert.equal(stripOverlappingCharacters("你好", "好天气"), "好天气");
+});
+
 test("preferPunctuatedPartial keeps punctuation when words are unchanged", () => {
   // Observed with parakeet: same audio re-emitted without punctuation
   assert.equal(
@@ -318,6 +327,15 @@ test("combinePromptText joins base and addition with a space", () => {
   assert.equal(combinePromptText(null, "only"), "only");
   assert.equal(combinePromptText("only", null), "only");
   assert.equal(combinePromptText(null, null), null);
+});
+
+test("prompt editing keys invalidate tracked dictation but not the voice key", () => {
+  assert.equal(isPromptEditingKey({ name: "backspace" }), true);
+  assert.equal(isPromptEditingKey({ name: "x" }), true);
+  assert.equal(isPromptEditingKey({ name: "x", shift: true }), true);
+  assert.equal(isPromptEditingKey({ name: "v", ctrl: true }), true);
+  assert.equal(isPromptEditingKey({ name: "left" }), false);
+  assert.equal(isPromptEditingKey({ name: "r", ctrl: true }, "ctrl+r"), false);
 });
 
 test("needsNormalization skips already-clean dictations", () => {

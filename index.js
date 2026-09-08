@@ -1,11 +1,11 @@
 // opencode-voice: Speech-to-text dictation for OpenCode.
 //
-// STT: Record voice via sox, transcribe locally with nemo-speech, show a live
-// interim transcript in the prompt while talking, normalize with an
-// OpenAI-compatible LLM, append to the TUI prompt.
+// STT: Record voice via sox, transcribe through the selected local or remote
+// backend, show a live interim transcript in the prompt while talking,
+// normalize with an OpenAI-compatible LLM, append to the TUI prompt.
 //
 // Prerequisites:
-//   sox for capture; nemo-speech for transcription (/voice installs it)
+//   sox for capture; /voice can install NeMo or a managed Qwen/Fun runtime
 //
 // Configuration via tui.json plugin options (all optional - /voice setup can
 // configure the rest at runtime):
@@ -22,7 +22,7 @@
 //   /stt-record            - record via active voice mode, transcribe
 //   /stt-submit           - stop recording, transcribe, and submit
 //   /stt-stop             - cancel recording
-//   /stt-model            - select nemo-speech model
+//   /stt-model            - select local or remote STT model
 //   /stt-gain             - toggle auto-gain
 //   /stt-mic              - select microphone
 

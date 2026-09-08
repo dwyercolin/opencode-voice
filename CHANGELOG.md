@@ -50,10 +50,14 @@ release of its own yet, so all of it is unreleased.
 - `tmpDir` option for the temporary recording file (draxxris).
 - Cross-platform audio backend detection and input-device selection
   (Crixus Xue).
+- **Managed transcription runtimes** — Qwen3-ASR uses the official vLLM wrapper
+  and Fun-ASR Nano uses the official llama.cpp/GGUF runtime. Fun-ASR MLT remains
+  available through an externally managed WebSocket server.
 
 ### Changed
 
-- **nemo-speech is the only transcription engine.**
+- **nemo-speech remains the default local transcription engine**, with optional
+  managed Qwen3-ASR and Fun-ASR Nano runtimes plus external server backends.
 - **Cleanup runs through the host OpenCode server by default** — your own
   models, including free Zen ones — instead of requiring an OpenAI-compatible
   endpoint configured up front. A pinned `endpoint` in `tui.json` still wins.
@@ -73,6 +77,12 @@ release of its own yet, so all of it is unreleased.
 
 ### Fixed
 
+- Qwen3-ASR's `language ...<asr_text>` response wrapper could be inserted into
+  the prompt as if it were dictated text; the OpenAI-compatible adapter now
+  keeps only the transcript.
+- Editing or deleting a previous dictation could leave the plugin's accumulated
+  text tracker stale and resurrect that text on the next recording. Prompt edits
+  now invalidate the tracker so the current prompt is preserved.
 - Setup asked for a **second ~700 MB download** after the first one finished:
   the wizard's download screen and the gate in front of it read an unset model
   setting two different ways, so they disagreed about which model was wanted.

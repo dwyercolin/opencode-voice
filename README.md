@@ -9,10 +9,11 @@ Hold `ctrl+r`, talk, and a live transcription streams into your prompt. When you
 release, an LLM cleanup pass fixes punctuation, filler words, and software
 engineering homophones ("Jason" to "JSON", "bullion" to "boolean").
 
-Transcription runs locally with NVIDIA's Parakeet/Nemotron models via
-[NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp) — more accurate
-than Whisper on English, immune to silence hallucination, and it punctuates
-natively. The `/voice` setup wizard installs everything.
+Transcription uses the selected local or remote backend. The default is NVIDIA's
+Parakeet/Nemotron models via [NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp).
+Qwen3-ASR can use the official `qwen-asr-serve` vLLM runtime, and Fun-ASR Nano
+can use the official llama.cpp/GGUF runtime. The `/voice` setup wizard installs
+the default local runtime and keeps backend selection explicit.
 
 > [!NOTE]
 > This is a fork of [renjfk/opencode-voice](https://github.com/renjfk/opencode-voice)
@@ -51,7 +52,7 @@ OpenCode host server and broke on others.
   requires `"debugLog": true`. A startup diagnostic that dumped host client
   internals to the same file was removed.
 
-Everything else — recording, live transcription, the local nemo-speech pipeline,
+Everything else — recording, live transcription, the NeMo compatibility path,
 voice modes, auto-gain — is upstream's work, unchanged.
 
 ## Install
@@ -83,7 +84,8 @@ pass [options](#options), use the array form:
 Then run `/voice` in OpenCode. The setup wizard installs nemo-speech if needed
 (in the background — keep working, it notifies when done), points text cleanup at
 the models you are already logged into OpenCode with, and asks how the talk key
-should behave.
+should behave. Use `/stt-model` to choose another local model or a remote model
+served through an OpenAI-compatible audio endpoint.
 
 > [!NOTE]
 > **Clobbering default keybinds.** This plugin uses `ctrl+r`, but OpenCode
@@ -92,9 +94,9 @@ should behave.
 
 ## Prerequisites
 
-Recording needs `sox`; transcription needs
-[nemo-speech](https://github.com/NVIDIA/NeMo-Speech.cpp), which `/voice`
-installs for you, or manually:
+Recording needs `sox`. The default local transcription backend needs
+[nemo-speech](https://github.com/NVIDIA/NeMo-Speech.cpp), which `/voice` installs
+for you, or manually:
 
 ```bash
 curl -fsSL https://github.com/NVIDIA/NeMo-Speech.cpp/raw/main/scripts/install.sh | sh
@@ -110,6 +112,47 @@ a key press starts by surprise. Once the model is cached, transcription is
 instant. Switch models with `/stt-model` — Parakeet TDT leads the Open ASR
 leaderboard for English and cannot hallucinate on silence; Nemotron covers other
 languages.
+
+### Local Qwen3-ASR and Fun-ASR
+
+The Qwen3-ASR and Fun-ASR Nano entries can install their official local runtimes
+from `/stt-model`. Choose a model, select **Install locally**, and the plugin
+caches the runtime and weights under `~/.cache/opencode-voice/stt`. The plugin
+package itself does not bundle Python, CUDA libraries, or model weights. It does
+not launch a desktop model application.
+
+Qwen3-ASR uses the official `qwen-asr-serve` vLLM wrapper and requires Linux,
+`python3` with its `venv` module, `curl`, `setsid`, `flock`, an NVIDIA GPU, and a
+working CUDA driver. On Debian/Ubuntu, the installer also bootstraps missing
+Python development headers into its cache for Triton. Qwen reserves 60% of GPU
+memory and sends `POST /audio/transcriptions` to its local OpenAI-compatible
+server.
+
+Fun-ASR Nano uses the official pinned FunASR llama.cpp/GGUF release. It runs the
+native `llama-funasr-cli` executable for each transcription and needs only
+Linux x86_64, `curl`, `tar`, `sha256sum`, and `flock`; it does not need Python,
+CUDA, or a model server. The first installation downloads the native runtime and
+approximately 1.3 GB of GGUF weights. Progress and failures remain visible in
+the Voice jobs panel.
+
+Managed installs show separate endpoint/setup and weights rows. Fun-ASR reports
+measured byte progress for both downloads; Qwen shows animated bars for stages
+whose vLLM installer does not publish a reliable total size.
+
+Fun-ASR MLT remains available when using an existing documented WebSocket server,
+usually `ws://127.0.0.1:10095`. The official local llama.cpp package currently
+ships Fun-ASR Nano weights, not the MLT checkpoint. When using an existing server,
+start it with the checkpoint selected in the plugin; the WebSocket protocol does
+not change checkpoints per request.
+
+For authenticated servers, set an environment variable containing the API key
+and enter its name under **STT API key environment variable**. The secret is
+never stored in `api.kv`.
+
+Qwen3-ASR and local Fun-ASR Nano use simulated streaming in this plugin: they
+repeatedly transcribe audio snapshots. Existing Fun-ASR WebSocket servers expose
+their documented streaming protocol; the current bridge opens one short session
+per refresh, while a persistent recorder session is a follow-up.
 
 ### Linux (including WSL2)
 
@@ -157,10 +200,10 @@ The first `sox -d` triggers a microphone permission prompt — grant it in
 
 ## The cleanup LLM
 
-Transcription is local. The **cleanup pass** — punctuation, filler words,
-homophones — is a separate LLM call, and it is not local: it runs against the
-OpenCode server you are already using, so your dictated text goes wherever that
-server routes it.
+The **cleanup pass** — punctuation, filler words, homophones — is separate from
+transcription. It is not local: it runs against the OpenCode server you are
+already using, so cleaned dictation goes wherever that server routes it. Remote
+STT models likewise send audio to the endpoint you configure; NeMo remains local.
 
 There is nothing to configure. `/voice` points cleanup at the host OpenCode
 server, reusing whatever models you are logged in with — your `small_model` is
@@ -192,9 +235,16 @@ All optional; `/voice` configures the common ones at runtime.
 
 **Transcription and audio**
 
-- `sttNemoModel` — default nemo-speech model short name (default: the CLI's own
-  default, `nemotron-3.5`). For English, `parakeet-tdt` is faster and more
-  accurate
+- `sttBackend` — optional backend override: `nemo` (default),
+  `openai-compatible`, `funasr-llama-cpp`, or `funasr-websocket`
+- `sttModel` — model ID for a static backend configuration. The picker provides
+  Qwen3-ASR and Fun-ASR IDs; custom IDs are accepted for compatible servers
+- `sttEndpoint` — base URL for an OpenAI-compatible audio transcription server,
+  usually `http://127.0.0.1:8000/v1`
+- `sttApiKeyEnv` — optional environment variable name containing the remote STT
+  API key; the secret itself is never persisted
+- `sttTimeoutMs` — timeout for one remote transcription request (default `30000`)
+- `sttNemoModel` — default nemo-speech model short name (default `parakeet-tdt`)
 - `autoGain` — measure each recording and boost quiet input (below ~-32 dB RMS)
   before transcription, up to +28 dB with a limiter (default `true`). Toggle
   with `/stt-gain`
@@ -243,7 +293,7 @@ calls). See the [OpenCode docs](https://opencode.ai/docs/troubleshooting/#logs).
 | `/stt-record` | `ctrl+r` | Record via active voice mode, then transcribe |
 | `/stt-submit` |          | Stop recording, transcribe, and submit        |
 | `/stt-stop`   |          | Cancel recording                              |
-| `/stt-model`  |          | Select nemo-speech model                      |
+| `/stt-model`  |          | Select local or remote transcription model    |
 | `/stt-gain`   |          | Toggle auto-gain                              |
 | `/stt-mic`    |          | Select microphone                             |
 
@@ -300,12 +350,10 @@ Dictations accumulate. The prompt is rebuilt as
 `[typed text][previous dictations][live text]`, so dictating again appends to
 what was already spoken, and the accumulation resets when the prompt is
 submitted. Text typed before dictating is protected via the TUI's `prompt.stash`
-and restored when dictation finishes.
-
-> One known quirk: if you type after a dictation finalizes and then dictate
-> again, the previous dictation can appear twice (the stashed state and the
-> plugin's own tracking overlap) — delete the duplicate before submitting. Avoid
-> typing while actually recording; refreshes rewrite the prompt every tick.
+and restored when dictation finishes. If you edit or delete a previous
+dictation, the plugin drops its tracking and the next recording uses the
+current prompt contents, so deleted text is not resurrected. Avoid typing while
+actually recording; refreshes rewrite the prompt every tick.
 
 On release there is no full re-transcription stall: only the audio since the last
 refresh (plus a 1s overlap, deduplicated word-wise) is transcribed, merged with
@@ -325,7 +373,7 @@ level in your OS mixer.
 
 1. `sox` records from your microphone (PulseAudio on Linux when `pactl` is
    available, CoreAudio on macOS, sox's default device otherwise)
-2. `nemo-speech` transcribes locally
+2. The selected STT backend transcribes locally or through its configured server
 3. An LLM normalizes the transcript: punctuation, filler words, and software
    engineering homophones
 4. The cleaned text is appended to the OpenCode prompt, or submitted immediately

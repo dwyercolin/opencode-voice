@@ -2,13 +2,15 @@
   "name": "@dwyercolin/opencode-voice",
   "version": "0.1.0",
   "private": true,
-  "description": "Speech-to-text dictation for OpenCode. Hold ctrl+r and talk: live transcription streams into your prompt, transcribed locally with nemo-speech and cleaned up by your own OpenCode models or any OpenAI-compatible endpoint.",
+  "description": "Speech-to-text dictation for OpenCode. Hold ctrl+r and talk: live transcription streams into your prompt through NeMo, Qwen3-ASR, Fun-ASR, or another supported backend and is cleaned up by your own OpenCode models.",
   "keywords": [
     "dictation",
+    "fun-asr",
     "nemo-speech",
     "opencode",
     "parakeet",
     "plugin",
+    "qwen3-asr",
     "speech-to-text",
     "stt",
     "voice"
