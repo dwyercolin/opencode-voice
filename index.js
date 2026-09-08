@@ -5,7 +5,7 @@
 // normalize with an OpenAI-compatible LLM, append to the TUI prompt.
 //
 // Prerequisites:
-//   sox for capture; /voice can install NeMo or a managed Qwen/Fun runtime
+//   sox for capture; /voice can install NeMo or a managed local STT runtime
 //
 // Configuration via tui.json plugin options (all optional - /voice setup can
 // configure the rest at runtime):

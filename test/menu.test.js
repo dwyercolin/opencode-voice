@@ -6,6 +6,7 @@ import {
   DIALOG_WIDTHS,
   addBackRow,
   createMenu,
+  displayWidth,
   fitRows,
   rowWidth,
   shortLabel,
@@ -53,6 +54,22 @@ test("fitRows pads titles to a common width", () => {
   // Everything else on the option survives the copy.
   assert.equal(rows[0].description, "recommended");
   assert.equal(rows[1].value, "tap");
+});
+
+test("fitRows aligns localized descriptions by terminal width", () => {
+  const rows = fitRows(
+    [
+      { title: "العربية", description: "Arabic" },
+      { title: "हिन्दी", description: "Hindi" },
+      { title: "ไทย", description: "Thai" },
+      { title: "中文", description: "Chinese" },
+    ],
+    40,
+  );
+  assert.deepEqual(
+    rows.map((row) => displayWidth(row.title)),
+    [7, 7, 7, 7],
+  );
 });
 
 test("fitRows sizes the column from described rows, not the longest title", () => {
@@ -168,7 +185,7 @@ test("addBackRow makes navigation visible and keeps its keyboard hint", () => {
   assert.equal(calls, 1);
 });
 
-test("createMenu wires Alt+Left to the current parent only", () => {
+test("createMenu wires Back to the active child menu", () => {
   let layer;
   let rendered;
   let closeCurrent;
@@ -216,9 +233,11 @@ test("createMenu wires Alt+Left to the current parent only", () => {
   createMenu(api);
   assert.equal(registrations, 1);
   let backCalls = 0;
+  const childOptions = [{ title: "Choice", value: "choice" }];
+  addBackRow(childOptions, () => backCalls++);
   menu({
     title: "Child",
-    options: [{ title: "Choice", value: "choice" }],
+    options: childOptions,
     back: () => backCalls++,
   });
 
@@ -228,9 +247,22 @@ test("createMenu wires Alt+Left to the current parent only", () => {
   ]);
   layer.commands[0].run();
   assert.equal(backCalls, 1);
-  assert.equal(rendered.skipFilter, false);
+  assert.equal(rendered.skipFilter, true);
   assert.equal(rendered.flat, true);
   assert.equal(rendered.placeholder, "Filter options…");
+
+  menu({
+    title: "Search",
+    options: [
+      { title: "Choice", value: "choice" },
+      { title: "Another choice", value: "another" },
+    ],
+    filter: true,
+  });
+  assert.equal(rendered.skipFilter, false);
+  api.ui.dialog.clear();
+  assert.equal(rendered, undefined);
+  assert.equal(layer.enabled(), false);
 
   const stale = menu.guard();
   assert.equal(stale(), true);

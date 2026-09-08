@@ -35,6 +35,15 @@ test("builds nemo-speech transcribe args with and without a model", () => {
     "--model",
     "parakeet-tdt",
   ]);
+  assert.deepEqual(buildNemoArgs("/tmp/a.wav", "nemotron-3.5", "ko"), [
+    "--quiet",
+    "transcribe",
+    "/tmp/a.wav",
+    "--model",
+    "nemotron-3.5",
+    "--language",
+    "ko",
+  ]);
 });
 
 test("sox install command names the system package manager", () => {

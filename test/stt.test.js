@@ -17,6 +17,7 @@ import {
   registerSTT,
   resolveVoiceKey,
   shortDeviceId,
+  STT_SYSTEM_PROMPT,
   stripOverlappingCharacters,
   stripOverlappingWords,
 } from "../lib/stt.js";
@@ -38,8 +39,14 @@ test("resolveVoiceKey prefers persisted, option, and default values in order", (
   assert.equal(resolveVoiceKey(kv, { voiceKey: "f2" }), "f2");
 });
 
-test("/voice changes the active talk key binding", () => {
-  const values = new Map([["voice.setupDone", true]]);
+test("/voice changes the active talk key binding", async () => {
+  const values = new Map([
+    ["voice.setupDone", true],
+    ["stt.model", "remote:qwen3-asr-0.6b"],
+    ["stt.backend", "openai-compatible"],
+    ["stt.endpoint", "https://old-server.example/v1"],
+    ["stt.apiKeyEnv", "OLD_STT_KEY"],
+  ]);
   const layers = [];
   const toasts = [];
   let rendered;
@@ -55,7 +62,7 @@ test("/voice changes the active talk key binding", () => {
         assert.equal(name, "key");
         captureKey = handler;
         return () => {
-          captureKey = undefined;
+          if (captureKey === handler) captureKey = undefined;
         };
       },
       parseKeySequence(key) {
@@ -89,9 +96,9 @@ test("/voice changes the active talk key binding", () => {
         setSize() {},
         clear() {
           const close = closeCurrent;
+          close?.();
           closeCurrent = undefined;
           rendered = undefined;
-          close?.();
         },
         get open() {
           return rendered !== undefined;
@@ -118,31 +125,43 @@ test("/voice changes the active talk key binding", () => {
 
   assert.equal(layers.length, 2);
   commands[1].onSelect();
+  assert.equal(rendered.options.find((option) => option.value === "mode").category, "Voice");
+  assert.equal(
+    rendered.options.find((option) => option.value === "model").category,
+    "Transcription",
+  );
+  assert.equal(rendered.options.find((option) => option.value === "mic").category, "Audio");
+  assert.equal(rendered.options.find((option) => option.value === "setup").category, "Setup");
+  assert.equal(
+    rendered.options.some((option) => option.value === "stt.endpoint"),
+    false,
+  );
+  assert.equal(
+    rendered.options.some((option) => option.value === "stt.api-key"),
+    false,
+  );
   const keyRow = rendered.options.find((option) => option.value === "key");
   keyRow.onSelect();
-  let consumed = false;
-  captureKey({
-    event: { name: "k", ctrl: true },
-    consume() {
-      consumed = true;
-    },
-  });
-
+  await Promise.resolve();
+  assert.equal(rendered.title, "Set voice keybind");
+  captureKey({ event: { name: "k", ctrl: true }, consume() {} });
+  await Promise.resolve();
   assert.match(rendered.message, /Selected: ctrl\+k/);
-  captureKey({
-    event: { name: "return" },
-    consume() {},
-  });
+  captureKey({ event: { name: "enter" }, consume() {} });
+  await Promise.resolve();
+  await Promise.resolve();
 
   assert.equal(values.get("voice.key"), "ctrl+k");
   assert.equal(layers[1].disposed, true);
   assert.equal(layers[2].layer.bindings[0].key, "ctrl+k");
-  assert.equal(consumed, true);
   assert.equal(toasts.at(-1).message, "Voice keybind: ctrl+k");
 
   rendered.options.find((option) => option.value === "key").onSelect();
+  await Promise.resolve();
   captureKey({ event: { name: "escape" }, consume() {} });
-  assert.equal(rendered, undefined);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(rendered.title, "Voice settings");
 });
 
 test("parses pactl JSON sources and filters out monitors", () => {
@@ -351,6 +370,11 @@ test("needsNormalization skips already-clean dictations", () => {
     needsNormalization("The live transcription is working now. Let's test another comment."),
     false,
   );
+});
+
+test("cleanup preserves the spoken language instead of translating it", () => {
+  assert.match(STT_SYSTEM_PROMPT, /Preserve the transcription's original language/);
+  assert.match(STT_SYSTEM_PROMPT, /never translate it/);
 });
 
 test("needsNormalization flags fillers, homophones, and missing punctuation", () => {

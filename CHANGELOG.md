@@ -13,6 +13,12 @@ source, not published to npm.
 Everything below has landed since upstream `v0.6.0`. This fork has not cut a
 release of its own yet, so all of it is unreleased.
 
+> [!WARNING]
+> **Alpha build.** Core dictation paths are still being exercised against real
+> OpenCode and local-runtime environments. Fun-ASR Nano and MLT managed setup is
+> a known issue: downloading or loading those models can fail. Use a NeMo model
+> if you need reliable dictation while that integration is fixed.
+
 ### Added
 
 - **`/voice` settings hub** — one screen listing every runtime setting with its
@@ -77,6 +83,8 @@ release of its own yet, so all of it is unreleased.
 
 ### Fixed
 
+- Rerunning setup now preselects the transcription language saved from `/voice`,
+  rather than the UI language chosen during the original setup.
 - Qwen3-ASR's `language ...<asr_text>` response wrapper could be inserted into
   the prompt as if it were dictated text; the OpenAI-compatible adapter now
   keeps only the transcript.

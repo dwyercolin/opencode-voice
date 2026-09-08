@@ -14,22 +14,22 @@ import {
 import { soxInstallCommand } from "../lib/engines.js";
 
 test("renders a compact progress bar", () => {
-  assert.equal(progressBar(0), "░░░░░░░░░░");
-  assert.equal(progressBar(47), "█████░░░░░");
-  assert.equal(progressBar(50), "█████░░░░░");
-  assert.equal(progressBar(100), "██████████");
-  assert.equal(progressBar(120), "██████████");
-  assert.equal(progressBar(-5), "░░░░░░░░░░");
-  assert.equal(progressBar(null), "░░░░░░░░░░");
-  assert.equal(progressBar(100, 4), "████");
+  assert.equal(progressBar(0), "----------");
+  assert.equal(progressBar(47), "=====-----");
+  assert.equal(progressBar(50), "=====-----");
+  assert.equal(progressBar(100), "==========");
+  assert.equal(progressBar(120), "==========");
+  assert.equal(progressBar(-5), "----------");
+  assert.equal(progressBar(null), "----------");
+  assert.equal(progressBar(100, 4), "====");
 });
 
 test("renders an indeterminate spinner bar", () => {
-  assert.equal(spinnerBar(0), "█░░░░░░░░░");
-  assert.equal(spinnerBar(3), "░░░█░░░░░░");
-  assert.equal(spinnerBar(9), "░░░░░░░░░█");
-  assert.equal(spinnerBar(10), "█░░░░░░░░░");
-  assert.equal(spinnerBar(-1), "█░░░░░░░░░");
+  assert.equal(spinnerBar(0), "*.........");
+  assert.equal(spinnerBar(3), "...*......");
+  assert.equal(spinnerBar(9), ".........*");
+  assert.equal(spinnerBar(10), "*.........");
+  assert.equal(spinnerBar(-1), "*.........");
 });
 
 test("formatAge says whether probe results are fresh or reused", () => {
@@ -62,13 +62,27 @@ test("jobLine shows a real bar for downloads and a spinner for sizeless installs
       { label: "Parakeet CTC", state: "running", startedAt, percent: 85, totalBytes: 1024 ** 3 },
       now,
     ),
-    "Parakeet CTC  █████████░ 85% · 1.0 GB",
+    "Parakeet CTC  =========- 85% · 1.0 GB",
   );
   // The installer reports no size at all; a moving cell says "alive" without
   // inventing a percentage the plugin cannot measure.
   assert.equal(
     jobLine({ label: "nemo-speech", state: "running", startedAt, percent: null, tick: 3 }, now),
-    "nemo-speech  ░░░█░░░░░░ 60s",
+    "nemo-speech  ...*...... 60s",
+  );
+  assert.equal(
+    jobLine(
+      {
+        label: "Loading Qwen3-ASR",
+        state: "running",
+        startedAt,
+        percent: null,
+        noSpinner: true,
+        detail: "loading cached model",
+      },
+      now,
+    ),
+    "Loading Qwen3-ASR  loading cached model · 60s",
   );
   // Finished jobs time themselves from when they finished, not from "now".
   assert.equal(
@@ -103,7 +117,7 @@ test("jobLine counts in-process work in its own units", () => {
       },
       now,
     ),
-    "Testing cleanup models  ░░░█░░░░░░ 60s · 3/8 answered",
+    "Testing cleanup models  ...*...... 60s · 3/8 answered",
   );
   // The count survives into the finished line, so a panel seen afterwards
   // still says what the round actually did.
@@ -133,7 +147,7 @@ test("jobLine counts in-process work in its own units", () => {
       },
       now,
     ),
-    "x  █████░░░░░ 50% · 1/2",
+    "x  =====----- 50% · 1/2",
   );
 });
 

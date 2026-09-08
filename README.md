@@ -9,11 +9,9 @@ Hold `ctrl+r`, talk, and a live transcription streams into your prompt. When you
 release, an LLM cleanup pass fixes punctuation, filler words, and software
 engineering homophones ("Jason" to "JSON", "bullion" to "boolean").
 
-Transcription uses the selected local or remote backend. The default is NVIDIA's
+Transcription uses the selected local model. The default is NVIDIA's
 Parakeet/Nemotron models via [NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp).
-Qwen3-ASR can use the official `qwen-asr-serve` vLLM runtime, and Fun-ASR Nano
-can use the official llama.cpp/GGUF runtime. The `/voice` setup wizard installs
-the default local runtime and keeps backend selection explicit.
+The `/voice` setup wizard installs each selected runtime and model automatically.
 
 > [!NOTE]
 > This is a fork of [renjfk/opencode-voice](https://github.com/renjfk/opencode-voice)
@@ -81,11 +79,12 @@ loads directly from the checkout, so `git pull` is the whole update process. To
 pass [options](#options), use the array form:
 `[["/absolute/path/to/opencode-voice", { "autoSubmit": true }]]`.
 
-Then run `/voice` in OpenCode. The setup wizard installs nemo-speech if needed
-(in the background — keep working, it notifies when done), points text cleanup at
-the models you are already logged into OpenCode with, and asks how the talk key
-should behave. Use `/stt-model` to choose another local model or a remote model
-served through an OpenAI-compatible audio endpoint.
+Then run `/voice` in OpenCode. The setup wizard selects a supported transcription
+language, voice key, input mode, and model. It then installs the selected model if
+needed, points text cleanup at the models you are already logged into OpenCode
+with, and finishes with an instruction for using the key. Use `/stt-model` to
+choose another local model or a remote model served through an OpenAI-compatible
+audio endpoint.
 
 > [!NOTE]
 > **Clobbering default keybinds.** This plugin uses `ctrl+r`, but OpenCode
@@ -109,17 +108,16 @@ during setup, and you can keep working while it lands. Nothing ever downloads on
 its own — if you decline, dictation stays unavailable and the talk key opens the
 same download screen instead of recording, so a ~700 MB pull is never something
 a key press starts by surprise. Once the model is cached, transcription is
-instant. Switch models with `/stt-model` — Parakeet TDT leads the Open ASR
-leaderboard for English and cannot hallucinate on silence; Nemotron covers other
-languages.
+instant. The language picker is intentionally limited to Automatic, English,
+Spanish, Chinese, Japanese, and Korean, which have explicit support in the
+shipped model cards.
 
 ### Local Qwen3-ASR and Fun-ASR
 
-The Qwen3-ASR and Fun-ASR Nano entries can install their official local runtimes
-from `/stt-model`. Choose a model, select **Install locally**, and the plugin
-caches the runtime and weights under `~/.cache/opencode-voice/stt`. The plugin
-package itself does not bundle Python, CUDA libraries, or model weights. It does
-not launch a desktop model application.
+Choose a model in `/voice` and the plugin installs its runtime and weights under
+`~/.cache/opencode-voice/stt`, showing setup/download progress until it is ready.
+No STT server URL or API key is required. The plugin package itself does not
+bundle Python, CUDA libraries, or model weights.
 
 Qwen3-ASR uses the official `qwen-asr-serve` vLLM wrapper and requires Linux,
 `python3` with its `venv` module, `curl`, `setsid`, `flock`, an NVIDIA GPU, and a
@@ -136,23 +134,20 @@ approximately 1.3 GB of GGUF weights. Progress and failures remain visible in
 the Voice jobs panel.
 
 Managed installs show separate endpoint/setup and weights rows. Fun-ASR reports
-measured byte progress for both downloads; Qwen shows animated bars for stages
-whose vLLM installer does not publish a reliable total size.
+measured byte progress for both downloads; Qwen shows an ASCII activity indicator
+for stages whose vLLM installer does not publish a reliable total size.
 
-Fun-ASR MLT remains available when using an existing documented WebSocket server,
-usually `ws://127.0.0.1:10095`. The official local llama.cpp package currently
-ships Fun-ASR Nano weights, not the MLT checkpoint. When using an existing server,
-start it with the checkpoint selected in the plugin; the WebSocket protocol does
-not change checkpoints per request.
+Fun-ASR MLT uses FunASR's local `funasr-server` with its 800M multilingual
+checkpoint. It binds only to `127.0.0.1`, preloads the model once, and the plugin
+uses its OpenAI-compatible transcription API internally. The service selects CPU
+automatically when CUDA is unavailable.
 
-For authenticated servers, set an environment variable containing the API key
-and enter its name under **STT API key environment variable**. The secret is
-never stored in `api.kv`.
+The selected language is passed to NeMo, Qwen3-ASR, and Fun-ASR MLT as their
+documented language hint. The official local Fun-ASR Nano CLI has no language
+argument, so that model uses its built-in automatic detection instead.
 
-Qwen3-ASR and local Fun-ASR Nano use simulated streaming in this plugin: they
-repeatedly transcribe audio snapshots. Existing Fun-ASR WebSocket servers expose
-their documented streaming protocol; the current bridge opens one short session
-per refresh, while a persistent recorder session is a follow-up.
+Qwen3-ASR and local Fun-ASR models use simulated streaming in this plugin: they
+repeatedly transcribe audio snapshots.
 
 ### Linux (including WSL2)
 
@@ -203,7 +198,7 @@ The first `sox -d` triggers a microphone permission prompt — grant it in
 The **cleanup pass** — punctuation, filler words, homophones — is separate from
 transcription. It is not local: it runs against the OpenCode server you are
 already using, so cleaned dictation goes wherever that server routes it. Remote
-STT models likewise send audio to the endpoint you configure; NeMo remains local.
+cleanup is separate from the local STT runtimes.
 
 There is nothing to configure. `/voice` points cleanup at the host OpenCode
 server, reusing whatever models you are logged in with — your `small_model` is
@@ -235,16 +230,11 @@ All optional; `/voice` configures the common ones at runtime.
 
 **Transcription and audio**
 
-- `sttBackend` — optional backend override: `nemo` (default),
-  `openai-compatible`, `funasr-llama-cpp`, or `funasr-websocket`
-- `sttModel` — model ID for a static backend configuration. The picker provides
-  Qwen3-ASR and Fun-ASR IDs; custom IDs are accepted for compatible servers
-- `sttEndpoint` — base URL for an OpenAI-compatible audio transcription server,
-  usually `http://127.0.0.1:8000/v1`
-- `sttApiKeyEnv` — optional environment variable name containing the remote STT
-  API key; the secret itself is never persisted
-- `sttTimeoutMs` — timeout for one remote transcription request (default `30000`)
+- `sttTimeoutMs` — timeout for one local service transcription request (default `30000`)
 - `sttNemoModel` — default nemo-speech model short name (default `parakeet-tdt`)
+- `sttLanguage` — initial transcription language, using a canonical code such as
+  `en`, `es`, `zh`, `ja`, or `ko`; defaults to `auto`. It can also be changed from the
+  **Transcription language** row in `/voice`
 - `autoGain` — measure each recording and boost quiet input (below ~-32 dB RMS)
   before transcription, up to +28 dB with a limiter (default `true`). Toggle
   with `/stt-gain`
@@ -299,11 +289,17 @@ calls). See the [OpenCode docs](https://opencode.ai/docs/troubleshooting/#logs).
 
 ### The `/voice` menu
 
-On first run `/voice` is a short wizard: install nemo-speech if missing, download
-the transcription model if it is not cached, pick the cleanup model, pick how the
-talk key behaves. After that it opens a settings screen showing every runtime
-setting with its current value — talk key, input mode, auto-submit, text cleanup,
-transcription model, microphone, auto-gain — plus a
+On first run `/voice` is a guided setup: choose a language, enter the voice key,
+choose hold-to-talk or tap-to-toggle, and select a compatible transcription model.
+It then handles prerequisites, downloads, and cleanup-model selection before
+showing a localized ready instruction. The selected interface language is stored in
+`voice.locale`; the initial transcription language is stored separately in
+`stt.language` so advanced settings can change one without unexpectedly changing
+the other.
+
+After setup `/voice` opens a settings screen showing every runtime setting with
+its current value — talk key, input mode, auto-submit, text cleanup,
+transcription model, transcription language, microphone, auto-gain — plus a
 "Run setup again" row. Toggles flip in place; pickers return to the screen. The
 `/stt-*` commands are shortcuts to the same pickers. Select the `← Back` row or
 press `Alt+Left` to return from a sub-screen; `Esc` closes the menu entirely.
