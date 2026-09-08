@@ -6,3 +6,7 @@
 6. fix toast noti overlap
 7. make menu nicer simpler
 8. fix tap to talk - buggy
+9. add apple language select typa menu thing vertical 
+10. check user hardware and lang to and suggest models for hardware or cloud api suggestion
+11. add api for whisper cloud users 
+12. make setup screen good 
